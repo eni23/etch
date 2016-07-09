@@ -63,6 +63,28 @@ struct eeprom_config_struct {
 
 
 /**
+ * start / stop the timer
+ **/
+
+void run_timer(){
+  if (!is_running){
+    digitalWrite(GPIO_RELAY, 1);
+    countdown_timer = timer.setInterval(100, countdown_minus);
+    is_running = true;
+  }
+}
+
+void stop_timer(){
+  if (is_running){
+    is_running = false;
+    timer.deleteTimer(countdown_timer);
+    digitalWrite(GPIO_RELAY, 0);
+    update_display();
+  }
+}
+
+
+/**
  * Save time value to eeprom
  **/
 void save_time(){
@@ -105,20 +127,16 @@ void encoder_push(){
   }
 
   if (current_time<1){
-    timer.deleteTimer(countdown_timer);
-    is_running = false;
+    current_time = eeprom_config.time;
+    update_display();
     return;
   }
+
   if (is_running){
-    is_running = false;
-    timer.deleteTimer(countdown_timer);
-    digitalWrite(GPIO_RELAY, 0);
-    update_display();
+    stop_timer();
   }
   else {
-    digitalWrite(GPIO_RELAY, 1);
-    countdown_timer = timer.setInterval(100, countdown_minus);
-    is_running = true;
+    run_timer();
   }
 }
 
@@ -131,12 +149,8 @@ void countdown_minus(){
   current_time -= 1;
 
   // timer finished
-  if (current_time<0){
-    digitalWrite(GPIO_RELAY, 0);
-    current_time = 0;
-    timer.deleteTimer(countdown_timer);
-    is_running = false;
-    current_time = eeprom_config.time;
+  if (current_time<=0){
+    stop_timer();
   }
   update_display();
 }

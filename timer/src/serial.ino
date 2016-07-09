@@ -104,9 +104,10 @@ void serial_process_input() {
       debug("allready running");
     }
     else {
-      digitalWrite(GPIO_RELAY, 1);
-      countdown_timer = timer.setInterval(100, countdown_minus);
-      is_running = true;
+      if (current_time<=0){
+        current_time = eeprom_config.time;
+      }
+      run_timer();
     }
     return;
   }
@@ -116,10 +117,7 @@ void serial_process_input() {
       debug("timer is not running");
     }
     else {
-      digitalWrite(GPIO_RELAY, 0);
-      timer.deleteTimer(countdown_timer);
-      is_running = false;
-      update_display();
+      stop_timer();
     }
     return;
   }
