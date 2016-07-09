@@ -1,0 +1,3 @@
+non-git
+build/*/*
+!build/.gitkeep
