@@ -14,6 +14,7 @@
 #include <Adafruit_ssd1306syp.h>
 #include "debouncer.cpp"
 #include "display_chars.cpp"
+#include "ds18b20obj.cpp"
 
 // hardware wiring
 #define GPIO_ENCODER_UP           D5
@@ -40,13 +41,19 @@
 boolean is_running = false;
 int countdown_timer;
 int eeprom_save_timer;
+int temp_timer;
 int current_time = 100;
+int temp_read_delay = 2500;
 Adafruit_ssd1306syp display(GPIO_DISPLAY_SDA, GPIO_DISPLAY_SCL);
 SimpleTimer timer;
+SimpleTimer timer_temp;
+
+float current_temp;
+
 
 Debouncer btn_debounce(200);
 Debouncer enc_debounce(10);
-
+DS18B20 temp(D4);
 
 // settings struct stored in eeprom, default values only set if no config found
 struct eeprom_config_struct {
@@ -157,20 +164,29 @@ void countdown_minus(){
 
 
 
+void start_temp_read(){
+  temp.read();
+}
+
+void temp_cb(float temp){
+  current_temp = temp;
+  update_display();
+}
+
 /**
  * Update display with current values
  **/
 void update_display(){
   display.clear();
-  display.setTextSize(1);
+  display.setTextSize(2);
   display.setCursor(0,0);
-  //display.println("1/10 s");
+  display.println((float)current_temp);
   if (is_running){
     display.drawBitmap(111, 0, sym_lamp, 16, 16, WHITE );
   }
-  //else {
-  //  display.drawBitmap(80, 0, sym_lamp_off, 16, 16, WHITE );
-  //}
+  /*else {
+    display.drawBitmap(80, 0, sym_smile, 32, 16, WHITE );
+  }*/
   display.setCursor(0,20);
   display.setTextSize(4);
   display.println((int)current_time);
@@ -208,6 +224,9 @@ void setup() {
   display.initialize();
   update_display();
 
+  // temp
+  temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
+  temp.on_temp(temp_cb);
 }
 
 
@@ -219,7 +238,9 @@ void loop() {
   if ( Serial.available() ) {
     serial_char_event();
   }
+  temp.run();
   timer.run();
+  timer_temp.run();
   //loop_ticks++;
   delay(1);
 }

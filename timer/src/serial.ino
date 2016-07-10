@@ -43,6 +43,21 @@ void debug( const char* message ) {
   }
 }
 
+int intArg(String serdata, int index){
+  String s_str = "";
+  s_str = get_str_token( serdata, ' ', index+1 );
+  int s;
+  s = s_str.toInt();
+  return s;
+}
+
+float floatArg(String serdata, int index){
+  String s_str = "";
+  s_str = get_str_token( serdata, ' ', index+1 );
+  float s;
+  s = s_str.toFloat();
+  return s;
+}
 
 /**
  * this function parses every line recived by serial port and exectues an action
@@ -119,6 +134,33 @@ void serial_process_input() {
     else {
       stop_timer();
     }
+    return;
+  }
+
+  if (command == "temp") {
+    temp.read();
+    return;
+  }
+
+  if (command == "temp-delay") {
+    int delc = intArg(serdata,0);
+    if (delc<20){
+      debug("delay needs to be at least 20ms");
+    }
+    temp_read_delay = delc;
+    timer_temp.deleteTimer(temp_timer);
+    temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
+    debug("new timer set up");
+    return;
+  }
+
+  if (command == "temp-precision") {
+    int precision = intArg(serdata,0);
+    if (precision<9 || precision > 12){
+      debug("precision needs to be between 9 and 12 (bits)");
+      return;
+    }
+    temp.set_resolution(precision);
     return;
   }
 
