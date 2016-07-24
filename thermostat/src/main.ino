@@ -1,12 +1,20 @@
+/*******************************************************************************
+ *
+ * etch-timer Firmware
+ *
+ * Author: Cyrill vW. < eni@e23.ch >
+ *
+ * This file needs to be compiled with Arduino-esp8266,
+ * Website: https://github.com/esp8266/Arduino
+ *
+ ******************************************************************************/
+
 #include <EEPROM.h>
 #include <SimpleTimer.h>
 #include <Adafruit_ssd1306syp.h>
 #include "debouncer.cpp"
-#include "icons.cpp"
-#include "serial-term/SerialTerm.cpp"
-
-
-SerialTerm term;
+#include "display_chars.cpp"
+#include "ds18b20obj.cpp"
 
 // hardware wiring
 #define GPIO_ENCODER_UP           D5
@@ -19,22 +27,33 @@ SerialTerm term;
 // serial port baudrate
 #define SERIAL_BAUD               115200
 
+// maximal serial input line length
+#define SERIAL_INPUT_BUFFER_SIZE  256
+
 // configuration version (required to locate config in eeprom)
 #define CONFIG_VERSION            "002"
 
 // start address for config-struct in eeprom
 #define CONFIG_START               64
 
+
 // global variables
 boolean is_running = false;
 int countdown_timer;
 int eeprom_save_timer;
+int temp_timer;
 int current_time = 100;
+int temp_read_delay = 2500;
 Adafruit_ssd1306syp display(GPIO_DISPLAY_SDA, GPIO_DISPLAY_SCL);
 SimpleTimer timer;
+SimpleTimer timer_temp;
+
+float current_temp;
+
 
 Debouncer btn_debounce(200);
 Debouncer enc_debounce(10);
+DS18B20 temp(D4);
 
 // settings struct stored in eeprom, default values only set if no config found
 struct eeprom_config_struct {
@@ -48,6 +67,7 @@ struct eeprom_config_struct {
   42,
   true
 };
+
 
 /**
  * start / stop the timer
@@ -143,6 +163,16 @@ void countdown_minus(){
 }
 
 
+
+void start_temp_read(){
+  temp.read();
+}
+
+void temp_cb(float temp){
+  current_temp = temp;
+  update_display();
+}
+
 /**
  * Update display with current values
  **/
@@ -150,13 +180,13 @@ void update_display(){
   display.clear();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println(eeprom_config.time);
+  display.println((float)current_temp);
   if (is_running){
-    display.drawBitmap(111, 0, sym_lamp_on, 16, 16, WHITE );
+    display.drawBitmap(111, 0, sym_lamp, 16, 16, WHITE );
   }
-  //else {
-  //  display.drawBitmap(111, 0, sym_lamp_off, 16, 16, WHITE );
-  //}
+  /*else {
+    display.drawBitmap(80, 0, sym_smile, 32, 16, WHITE );
+  }*/
   display.setCursor(0,20);
   display.setTextSize(4);
   display.println((int)current_time);
@@ -182,54 +212,7 @@ void setup() {
   sei();
 
   // setup uart
-  term.begin(115200);
-
-  // setup terminal functions
-  term.on("step-size", [](){
-    int ss = term.intArg(0);
-    if (ss<1){
-      term.printf( "error parsing arg1 as int\n\r");
-      return;
-    }
-    eeprom_config.step_size = ss;
-    term.printf("new step_size=%i", ss);
-    eeprom_save_config();
-  });
-
-  term.on("set-time",[](){
-    int tc = term.intArg(0);
-    if (tc<1){
-      term.printf("error parsing arg1 as int\n\r");
-      return;
-    }
-    current_time = tc;
-    save_time();
-    update_display();
-  });
-
-  term.on("run", []() {
-    if (is_running){
-      term.debug("allready running");
-    }
-    else {
-      if (current_time<=0){
-        current_time = eeprom_config.time;
-      }
-      run_timer();
-    }
-    return;
-  });
-
-  term.on("stop", []() {
-    if (!is_running){
-      term.debug("timer is not running");
-    }
-    else {
-      stop_timer();
-    }
-    return;
-  });
-
+  Serial.begin( SERIAL_BAUD );
 
   // setup eeprom
   EEPROM.begin( sizeof( eeprom_config ) + CONFIG_START );
@@ -240,6 +223,10 @@ void setup() {
   // setup display
   display.initialize();
   update_display();
+
+  // temp
+  temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
+  temp.on_temp(temp_cb);
 }
 
 
@@ -248,8 +235,12 @@ void setup() {
  **/
 void loop() {
   // do serial stuff first
+  if ( Serial.available() ) {
+    serial_char_event();
+  }
+  temp.run();
   timer.run();
-  term.run();
+  timer_temp.run();
   //loop_ticks++;
   delay(1);
 }

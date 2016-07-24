@@ -1,0 +1,3 @@
+[submodule "timer/src/serial-term"]
+	path = timer/src/serial-term
+	url = git@github.com:eni23/serial-term.git

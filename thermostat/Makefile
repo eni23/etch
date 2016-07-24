@@ -15,8 +15,6 @@ MONITOR_BAUD		= 115200
 SKETCH_NAME = $(basename $(MAINFILE))
 SRCTMP = $(join $(OBJDIR)/sketch/,$(SKETCH_NAME))
 MAIN = $(join $(SRCTMP)/,$(MAINFILE))
-COLORIZE=3>&1 1>&2 2>&3 | xargs -0 -I{} echo -e "\e[01;31m{}\e[0m"
-GREENTEXT= | xargs -0 -I{} echo -e "\e[01;32m{}\e[0m"
 
 ARDUINO_BUILDER = $(ARDUINO_DIR)/arduino-builder
 ABFLAGS  = -hardware "$(ARDUINO_DIR)/hardware" -hardware "$(ARDUINO_PACKAGES_DIR)/packages"
@@ -40,7 +38,7 @@ monitor: find-serial
 	screen $(USBTTY) $(MONITOR_BAUD)
 
 upload: find-serial
-	$(ARDUINO_PACKAGES_DIR)/packages/esp8266/tools/esptool/0.4.8/esptool -vv -cd nodemcu -cb $(UPLOAD_BAUD) -cp $(USBTTY) -ca 0x00000 -cf $(OBJDIR)/hex/$(SKETCH_NAME).ino.bin $(COLORIZE)
+	$(ARDUINO_PACKAGES_DIR)/packages/esp8266/tools/esptool/0.4.8/esptool -vv -cd nodemcu -cb $(UPLOAD_BAUD) -cp $(USBTTY) -ca 0x00000 -cf $(OBJDIR)/hex/$(SKETCH_NAME).ino.bin
 
 all: build upload
 
@@ -51,5 +49,4 @@ clean:
 update-temp:
 	mkdir -p $(OBJDIR)/sketch/$(SKETCH_NAME)
 	mkdir -p $(OBJDIR)/hex
-	#cp -r $(SRCDIR)/* $(OBJDIR)/sketch/$(SKETCH_NAME)
-	rsync -rv --delete --exclude=.git $(SRCDIR)/ $(OBJDIR)/sketch/$(SKETCH_NAME)
+	cp -r $(SRCDIR)/* $(OBJDIR)/sketch/$(SKETCH_NAME)
