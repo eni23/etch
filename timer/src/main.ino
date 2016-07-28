@@ -6,8 +6,6 @@
 #include "serial-term/SerialTerm.cpp"
 
 
-SerialTerm term;
-
 // hardware wiring
 #define GPIO_ENCODER_UP           D5
 #define GPIO_ENCODER_DOWN         D6
@@ -35,6 +33,8 @@ SimpleTimer timer;
 
 Debouncer btn_debounce(200);
 Debouncer enc_debounce(10);
+
+SerialTerm term;
 
 // settings struct stored in eeprom, default values only set if no config found
 struct eeprom_config_struct {

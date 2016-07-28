@@ -164,6 +164,28 @@ void serial_process_input() {
     return;
   }
 
+  // reboot device
+  if ( command == "disp-raw" ) {
+    int width = intArg(serdata,0);
+    int height = intArg(serdata,1);
+    int nc = intArg(serdata,2);
+    uint8_t pxbuffer[nc+1];
+    int cc = 0;
+    Serial.print(nc);
+    Serial.println(" go");
+    delay(100);
+    while (cc<nc){
+      pxbuffer[cc] = Serial.read();
+      cc++;
+    }
+    lock_display=true;
+    display.clear();
+    display.drawBitmap(0, 17, pxbuffer, width, height, WHITE );
+    display.update();
+    debug("ok");
+    return;
+  }
+
   // turn on printing debug messages
   if ( command == "show-debug" ) {
     eeprom_config.debug_output_enabled = true;
@@ -174,8 +196,8 @@ void serial_process_input() {
 
   // turn off printing debug messages
   if ( command == "hide-debug" ) {
-    eeprom_config.debug_output_enabled = false;
-    eeprom_save_config();
+    //eeprom_config.debug_output_enabled = false;
+    //eeprom_save_config();
     return;
   }
 
@@ -183,7 +205,6 @@ void serial_process_input() {
   if ( command == "reboot" ) {
     return;
   }
-
 
   if ( command == "_gpio" ) {
     String port_str = "";

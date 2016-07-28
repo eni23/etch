@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include <OneWire.h>
+#include <stdio.h>
+#include <string.h>
 
 
 
@@ -20,8 +22,12 @@ class DS18B20 {
 	DS18B20Callback callback;
 
 	void buffer_add(float value) {
-		buffer[buffer_idx] = value;
-	 	buffer_idx = (buffer_idx + 1) % 16;
+		for (int k = 16; k >0; k--){
+		  buffer[k]=buffer[k-1];
+		}
+		buffer[0] = value;
+		//buffer[buffer_idx] = value;
+	 	//buffer_idx = (buffer_idx + 1) % 16;
 	}
 
 	void start_read(){
@@ -68,10 +74,13 @@ class DS18B20 {
 	}
 
 	public:
-  DS18B20(int onewire_pin, uint8_t res = 10) {
+  DS18B20() {
+  }
+
+	void init(int onewire_pin, uint8_t res = 10){
 		sensor = new OneWire(onewire_pin);
 		resolution = res;
-  }
+	}
 
 	void on_temp(DS18B20Callback cbx){
 		callback = cbx;
@@ -84,6 +93,92 @@ class DS18B20 {
 	void read() {
 		start_read();
 	}
+
+	void get_buffer(uint8_t index){
+		Serial.println( buffer[index] );
+	}
+
+	int get_trend_divi(){
+		float diff[16];
+  	float tot = 0;
+  	for (int i = 0; i<15; i++){
+    	diff[i] = buffer[i+1] - buffer[i];
+    	tot+=diff[i];
+  	}
+		tot = (tot/15);
+		float tt = (buffer[16] - buffer[0] / 16);
+		Serial.print("variance=");
+		Serial.print(tt);
+		Serial.print(" trend=");
+		Serial.println(tot);
+
+		if (tot>0){
+			//falling
+			return 1;
+		}
+		if (tot<0){
+			//rising
+			return 2;
+		}
+		//unclear
+		return 0;
+	}
+
+
+	int get_trend_count(){
+	  float base = buffer[0];
+	  int upper = 0;
+	  int lower = 0;
+		for (int i=15; i>0; i--){
+	    if (buffer[i]>base){
+	      lower++;
+	    }
+	    if (buffer[i]<base){
+	      upper++;
+	    }
+	  }
+		if (upper>lower){
+    	//rising
+			return 2;
+  	}
+  	if (lower>upper){
+    	//falling
+			return 1;
+  	}
+		// unclear
+		return 0;
+	}
+
+
+
+	int get_trend_countw(){
+	  float base = buffer[0];
+	  float upper=0;
+	  float lower=0;
+	  int g=1;
+		for (int i=15; i>0; i--){
+	    if (buffer[i]>base){
+	      lower += ((float) (buffer[i]-base) * (1*g) );
+	    }
+	    if (buffer[i]<base){
+	      upper += ((float) (base-buffer[i]) * (1*g) );
+	    }
+	    g++;
+	  }
+
+		if (upper > lower){
+    	//rising
+			return 2;
+  	}
+  	if (lower > upper){
+			//falling
+			return 1;
+  	}
+		// unclear
+		return 0;
+
+	}
+
 
   void run(){
 		if (sensor->read() && read_is_active){

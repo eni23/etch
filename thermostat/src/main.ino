@@ -49,11 +49,11 @@ SimpleTimer timer;
 SimpleTimer timer_temp;
 
 float current_temp;
-
+bool lock_display = false;
 
 Debouncer btn_debounce(200);
 Debouncer enc_debounce(10);
-DS18B20 temp(D4);
+DS18B20 temp;
 
 // settings struct stored in eeprom, default values only set if no config found
 struct eeprom_config_struct {
@@ -168,8 +168,39 @@ void start_temp_read(){
   temp.read();
 }
 
-void temp_cb(float temp){
-  current_temp = temp;
+void print_trend_status(int trendn){
+  if (trendn == 2){
+    Serial.print("rising");
+  }
+  else if (trendn == 1){
+    Serial.print("falling");
+  }
+  else {
+    Serial.print("unknown");
+  }
+}
+
+void temp_cb(float ct){
+  current_temp = ct;
+  //Serial.println("hist:");
+  /*for (int i = 0; i<16; i++){
+    Serial.print(i);
+    Serial.print("=");
+    temp.get_buffer(i);
+  }
+
+  int td = temp.get_trend_divi();
+  int tc = temp.get_trend_count();
+  int tcw = temp.get_trend_countw();
+
+  Serial.print("divi=");
+  print_trend_status(td);
+  Serial.print(" count=");
+  print_trend_status(tc);
+  Serial.print(" count_weight=");
+  print_trend_status(tcw);
+  Serial.println("");*/
+
   update_display();
 }
 
@@ -177,19 +208,25 @@ void temp_cb(float temp){
  * Update display with current values
  **/
 void update_display(){
+  if (lock_display){
+    return;
+  }
+
   display.clear();
   display.setTextSize(2);
   display.setCursor(0,0);
+  //display.drawBitmap(0, 10, big_star, 64, 64, WHITE );
   display.println((float)current_temp);
   if (is_running){
     display.drawBitmap(111, 0, sym_lamp, 16, 16, WHITE );
   }
-  /*else {
-    display.drawBitmap(80, 0, sym_smile, 32, 16, WHITE );
-  }*/
+  //else {
+  //  display.drawBitmap(80, 0, sym_smile, 32, 16, WHITE );
+  //}
   display.setCursor(0,20);
   display.setTextSize(4);
   display.println((int)current_time);
+
   display.update();
 }
 
@@ -226,6 +263,8 @@ void setup() {
 
   // temp
   temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
+
+  temp.init(D4);
   temp.on_temp(temp_cb);
 }
 
