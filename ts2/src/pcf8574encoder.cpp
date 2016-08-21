@@ -98,9 +98,6 @@ class PCF8574Encoder {
 
 
 		if (enc_frame_active){
-			Serial.println(enc_frame_num);
-			Serial.println(data, BIN);
-
 			enc_frame_data[enc_frame_num][0] = enc_plus;
 			enc_frame_data[enc_frame_num][1] = enc_minus;
 			enc_frame_num++;
@@ -111,11 +108,9 @@ class PCF8574Encoder {
 				uint8_t enc_dir = process_enc_frames();
 				if (enc_dir>0){
 					if (enc_dir==1) {
-						Serial.println("up");
 						callback_up();
 					}
 					if (enc_dir==2) {
-						Serial.println("down");
 						callback_down();
 					}
 				}

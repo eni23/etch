@@ -2,13 +2,15 @@
 #include <TFT_ST7735.h>
 #include <EEPROM.h>
 #include <SimpleTimer.h>
-#include "debouncer.cpp"
-#include "pcf8574encoder.cpp"
-
 #include "serial-term/SerialTerm.cpp"
 #include <pcf8574_esp.h>
-#include "_includes/sumotoy_fontDescription.h"
-#include "test0.c"
+
+#include "debouncer.cpp"
+#include "pcf8574encoder.cpp"
+// font
+#include "_usr/test0.c"
+
+
 
 
 /*
@@ -43,6 +45,13 @@
 
 TFT_ST7735 tft = TFT_ST7735(DISPLAY_PIN_CS, DISPLAY_PIN_DC);
 PCF8574 pcf8574(PCF8574_ADDR, PCF8574_PIN_SDA, PCF8574_PIN_SCL);
+
+
+void set_font(){
+tft.setFont(&fff);
+}
+
+
 
 int countdown_timer2;
 int countdown_timer;
@@ -247,7 +256,6 @@ void setup() {
     }
   });
   test_encoder2.button([](){
-
     if (e2_current_time<1){
       return;
     }
@@ -260,10 +268,23 @@ void setup() {
     }
   });
 
+  term.on("t1", [](){
+    int wt=term.intArg(0);
+    last_current_time = current_time;
+    current_time = wt;
+    update_display();
+  });
+
+  term.on("t2", [](){
+    int wt=term.intArg(0);
+    e2_last_current_time = e2_current_time;
+    e2_current_time = wt;
+    update_display2();
+  });
 
   tft.begin();
-  tft.setTextScale(1);
-  tft.setFont(&test0);
+  tft.setTextScale(1.5);
+  set_font();
   tft.setTextColor(GREEN);
   tft.println(format_time());
   tft.setTextColor(RED);
