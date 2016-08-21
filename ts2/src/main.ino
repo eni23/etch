@@ -1,7 +1,10 @@
 #include <SPI.h>
 #include <TFT_ST7735.h>
 #include <EEPROM.h>
+#include <SimpleTimer.h>
 #include "debouncer.cpp"
+#include "pcf8574encoder.cpp"
+
 #include "serial-term/SerialTerm.cpp"
 #include <pcf8574_esp.h>
 
@@ -41,18 +44,21 @@
 TFT_ST7735 tft = TFT_ST7735(DISPLAY_PIN_CS, DISPLAY_PIN_DC);
 PCF8574 pcf8574(PCF8574_ADDR, PCF8574_PIN_SDA, PCF8574_PIN_SCL);
 
+
+int countdown_timer;
+SimpleTimer timer;
 SerialTerm term;
 Debouncer btn_debounce(10);
 Debouncer enc_debounce(10);
+PCF8574Encoder test_encoder(0,1,2);
 
-
-
+int current_time = 0;
+int last_current_time = 0;
+bool is_running = false;
+uint16_t timer_disp_color = GREEN;
 
 bool pcf_data_incoming = false;
-uint8_t pcf_data = 0;
-
-int wanted_temp = 0;
-
+uint8_t pcf_data;
 
 void pcf_int(){
   pcf_data_incoming = true;
@@ -60,10 +66,69 @@ void pcf_int(){
 }
 
 
+void countdown_minus(){
+  last_current_time = current_time;
+  current_time -= 1;
+  // timer finished
+  if (current_time<=0){
+    stop_timer();
+  }
+  update_display();
+}
+
+
+void run_timer(){
+  if (!is_running){
+    countdown_timer = timer.setInterval(1000, countdown_minus);
+    timer_disp_color=CYAN;
+    is_running = true;
+  }
+}
+
+void stop_timer(){
+  if (is_running){
+    timer_disp_color = GREEN;
+    is_running = false;
+    timer.deleteTimer(countdown_timer);
+    update_display();
+  }
+}
 
 void log( const char* message ) {
   term.debug(message);
 }
+
+String format_time(int wt = -1){
+  if (wt<0){
+    wt=current_time;
+  }
+  String ret = "";
+  int minutes = (int) wt / 60;
+  int secs = wt % 60;
+  String str_min = String(minutes, DEC);
+  String str_sec = String(secs, DEC);
+  if (minutes<10) ret+="0";
+  ret+=str_min;
+  ret+=":";
+  if (secs<10) ret+="0";
+  ret+=str_sec;
+  return ret;
+}
+
+
+void update_display(){
+  tft.setCursor(0, 0);
+  tft.setTextColor(BLACK);
+  tft.print(format_time(last_current_time));
+  tft.setCursor(0, 0);
+  tft.setTextColor(timer_disp_color);
+  tft.print(format_time());
+}
+
+
+
+
+
 
 void setup() {
 
@@ -73,103 +138,50 @@ void setup() {
 
   term.begin(115200);
 
-  term.on("foo", []() {
-    term.debug("bar");
+  test_encoder.up([](){
+    last_current_time = current_time;
+    current_time++;
+    update_display();
   });
+
+  test_encoder.down([](){
+    last_current_time = current_time;
+    if (current_time>0){
+      current_time--;
+      update_display();
+    }
+  });
+  test_encoder.button([](){
+    if (current_time<1){
+      return;
+    }
+    if (is_running){
+      stop_timer();
+    }
+    else {
+      run_timer();
+      update_display();
+    }
+  });
+
   tft.begin();
   tft.setTextScale(2);
   tft.setFont(&mono_mid);
   tft.setTextColor(GREEN);
-  tft.println(wanted_temp);
+  tft.println(format_time());
+  tft.setTextColor(RED);
+  tft.println("00:00");
+  tft.setTextColor(GREEN);
+
 }
 
-
-uint8_t get_state(uint8_t _gs_states, uint8_t pos){
-  return (_gs_states & (1<<pos)) > 0;
-}
-
-
-
-uint8_t enc_frame_num = 0;
-bool enc_frame_active = false;
-uint8_t enc_frame_data[3];
 
 
 void loop(void) {
-  term.run();
-
   if (pcf_data_incoming){
-
-
-
-    uint8_t enc_plus = get_state(pcf_data, 1);
-    uint8_t enc_minus = get_state(pcf_data, 2);
-
-    //uint8_t enc_minus = (pcf_data & (1<<2)) > 0;
-
-
-    // start of a 4bit encoder frame
-    if ((enc_plus<1 || enc_minus<1) && !enc_frame_active){
-      enc_frame_active = true;
-    }
-
-    if (enc_frame_active){
-      enc_frame_data[enc_frame_num] = pcf_data;
-      enc_frame_num++;
-      if (enc_frame_num>2){
-        enc_frame_num=0;
-        enc_frame_active=false;
-
-
-        // process encoder frames
-        bool frame_valid = true;
-        uint8_t enc_dir = 0; // 0=invalid, 1=plus 2=minus
-        for (uint8_t i=0; i<3; i++){
-          uint8_t frm_plus  = get_state(enc_frame_data[i], 1);
-          uint8_t frm_minus = get_state(enc_frame_data[i], 2);
-          switch (i){
-            case 0:
-              if (frm_plus>frm_minus){
-                enc_dir=1;
-              }
-              else if (frm_minus>frm_plus){
-                enc_dir=2;
-              }
-              break;
-            case 1:
-              if (frm_minus!=0 || frm_plus!=0){
-                enc_dir=0;
-              }
-              break;
-            case 2:
-              if ( (enc_dir==1 && frm_plus!=0 && frm_minus!=1) ||
-                   (enc_dir==2 && frm_plus!=1 && frm_minus!=0)) {
-                enc_dir=0;
-              }
-              break;
-          }
-        }
-
-        if (enc_dir>0){
-          int old_wanted_temp = wanted_temp;
-          if (enc_dir==1) {
-            wanted_temp++;
-          }
-          else {
-            if (wanted_temp>0) wanted_temp--;
-          }
-          tft.setCursor(0, 0);
-          tft.setTextColor(BLACK);
-          tft.print(old_wanted_temp);
-          tft.setCursor(0, 0);
-          tft.setTextColor(GREEN);
-          tft.print(wanted_temp);
-        }
-        term.printf("encoder=%i\n\r", enc_dir);
-
-      }
-    }
+    test_encoder.process(pcf_data);
     pcf_data_incoming = false;
   }
-
+  timer.run();
+  term.run();
 }
