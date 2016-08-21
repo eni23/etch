@@ -7,8 +7,8 @@
 
 #include "serial-term/SerialTerm.cpp"
 #include <pcf8574_esp.h>
-
-#include "_fonts/mono_mid.c"
+#include "_includes/sumotoy_fontDescription.h"
+#include "test0.c"
 
 
 /*
@@ -44,18 +44,26 @@
 TFT_ST7735 tft = TFT_ST7735(DISPLAY_PIN_CS, DISPLAY_PIN_DC);
 PCF8574 pcf8574(PCF8574_ADDR, PCF8574_PIN_SDA, PCF8574_PIN_SCL);
 
-
+int countdown_timer2;
 int countdown_timer;
 SimpleTimer timer;
 SerialTerm term;
 Debouncer btn_debounce(10);
 Debouncer enc_debounce(10);
 PCF8574Encoder test_encoder(0,1,2);
+PCF8574Encoder test_encoder2(3,4,5);
 
 int current_time = 0;
 int last_current_time = 0;
 bool is_running = false;
 uint16_t timer_disp_color = GREEN;
+
+
+int e2_current_time = 0;
+int e2_last_current_time = 0;
+bool e2_is_running = false;
+uint16_t timer2_disp_color = RED;
+
 
 bool pcf_data_incoming = false;
 uint8_t pcf_data;
@@ -94,6 +102,37 @@ void stop_timer(){
   }
 }
 
+void countdown_minus2(){
+  e2_last_current_time = e2_current_time;
+  e2_current_time -= 1;
+  // timer finished
+  if (e2_current_time<=0){
+    stop_timer2();
+  }
+  update_display2();
+}
+
+
+void run_timer2(){
+  if (!e2_is_running){
+    countdown_timer2 = timer.setInterval(1000, countdown_minus2);
+    timer2_disp_color=MAGENTA;
+    e2_is_running = true;
+  }
+}
+
+void stop_timer2(){
+  if (e2_is_running){
+    timer2_disp_color = RED;
+    e2_is_running = false;
+    timer.deleteTimer(countdown_timer2);
+    update_display2();
+  }
+}
+
+
+
+
 void log( const char* message ) {
   term.debug(message);
 }
@@ -117,16 +156,46 @@ String format_time(int wt = -1){
 
 
 void update_display(){
+  String ts_old = format_time(last_current_time);
+  String ts_new = format_time();
   tft.setCursor(0, 0);
-  tft.setTextColor(BLACK);
-  tft.print(format_time(last_current_time));
+  for (int i = 0; i < ts_old.length(); i++){
+    if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ||
+         ((current_time % 60)==0) || ((last_current_time % 60)==0) ) {
+      tft.setTextColor(BLACK);
+    }
+    else {
+      tft.setTextColor(timer_disp_color);
+    }
+    tft.print(ts_old.charAt(i));
+  }
   tft.setCursor(0, 0);
   tft.setTextColor(timer_disp_color);
   tft.print(format_time());
 }
 
 
-
+uint16_t cc2_col = RED;
+void update_display2(){
+  String ts_old = format_time(e2_last_current_time);
+  String ts_new = format_time(e2_current_time);
+  tft.setCursor(0, 0);
+  tft.println();
+  for (int i = 0; i < ts_old.length(); i++){
+    if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ||
+         ((e2_current_time % 60)==0) || ((e2_last_current_time % 60)==0) ) {
+      tft.setTextColor(BLACK);
+    }
+    else {
+      tft.setTextColor(timer2_disp_color);
+    }
+    tft.print(ts_old.charAt(i));
+  }
+  tft.setCursor(0, 0);
+  tft.println();
+  tft.setTextColor(timer2_disp_color);
+  tft.print(ts_new);
+}
 
 
 
@@ -164,9 +233,37 @@ void setup() {
     }
   });
 
+  test_encoder2.up([](){
+    e2_last_current_time = e2_current_time;
+    e2_current_time++;
+    update_display2();
+  });
+
+  test_encoder2.down([](){
+    e2_last_current_time = e2_current_time;
+    if (e2_current_time>0){
+      e2_current_time--;
+      update_display2();
+    }
+  });
+  test_encoder2.button([](){
+
+    if (e2_current_time<1){
+      return;
+    }
+    if (e2_is_running){
+      stop_timer2();
+    }
+    else {
+      run_timer2();
+      update_display2();
+    }
+  });
+
+
   tft.begin();
-  tft.setTextScale(2);
-  tft.setFont(&mono_mid);
+  tft.setTextScale(1);
+  tft.setFont(&test0);
   tft.setTextColor(GREEN);
   tft.println(format_time());
   tft.setTextColor(RED);
@@ -180,6 +277,7 @@ void setup() {
 void loop(void) {
   if (pcf_data_incoming){
     test_encoder.process(pcf_data);
+    test_encoder2.process(pcf_data);
     pcf_data_incoming = false;
   }
   timer.run();

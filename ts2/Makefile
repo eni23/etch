@@ -1,6 +1,6 @@
-MONITOR_BAUD		= 115200
-SERIAL_DEVICE		= /dev/ttyUSB*
-
+MONITOR_BAUD		 = 115200
+SERIAL_DEVICE		 = /dev/ttyUSB*
+FAST_UPLOAD_BAUD = 3000000
 
 all:
 		platformio -f -c vim run

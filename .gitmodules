@@ -1,3 +1,14 @@
 [submodule "timer/src/serial-term"]
 	path = timer/src/serial-term
 	url = git@github.com:eni23/serial-term.git
+[submodule "ts2/src/serial-term"]
+	path = ts2/src/serial-term
+	url = git@github.com:eni23/serial-term.git
+[submodule "ts2/lib/PCF8574_ESP"]
+	path = ts2/lib/PCF8574_ESP
+	url = https://github.com/WereCatf/PCF8574_ESP
+[submodule "ts2/lib/TFT_ST7735"]
+	path = ts2/lib/TFT_ST7735
+	url = https://github.com/sumotoy/TFT_ST7735
+	branch = 1.0p1
+	ignore = dirty
