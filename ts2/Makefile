@@ -1,12 +1,15 @@
 MONITOR_BAUD		 = 115200
 SERIAL_DEVICE		 = /dev/ttyUSB*
-FAST_UPLOAD_BAUD = 3000000
+FAST_UPLOAD_BAUD = 1000000
 
 all:
 		platformio -f -c vim run
 
 upload:
-		platformio -f -c vim run --target upload
+		platformio -f -c vim run --target upload --verbose
+
+rup: find-serial
+	tools/esptool-cesanta.py --port $(USBTTY) write_flash --flash_baud=$(FAST_UPLOAD_BAUD) 0 .pioenvs/nodemcuv2/firmware.bin
 
 clean:
 		platformio -f -c vim run --target clean

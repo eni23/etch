@@ -5,6 +5,9 @@
 #include "serial-term/SerialTerm.cpp"
 #include <pcf8574_esp.h>
 
+
+#include "ds18b20obj.cpp"
+
 #include "debouncer.cpp"
 #include "pcf8574encoder.cpp"
 // font
@@ -22,13 +25,14 @@
 // wirning
 // DISPLAY_PIN_CLK      D5
 // DISPLAY_PIN_MOSI     D7
-#define DISPLAY_PIN_CS  D8
-#define DISPLAY_PIN_DC  D1
+#define DISPLAY_PIN_CS  D0
+#define DISPLAY_PIN_DC  D8
+#define DS18B20_PIN     D1
 #define PCF8574_PIN_INT D4
 #define PCF8574_PIN_SDA D2
 #define PCF8574_PIN_SCL D3
-
 #define PCF8574_ADDR    32
+
 
 // serial port baudrate
 #define SERIAL_BAUD               115200
@@ -61,11 +65,18 @@ Debouncer btn_debounce(10);
 Debouncer enc_debounce(10);
 PCF8574Encoder test_encoder(0,1,2);
 PCF8574Encoder test_encoder2(3,4,5);
+DS18B20 temp;
+SimpleTimer timer_temp;
+int temp_timer;
+int temp_read_delay = 2500;
 
 int current_time = 0;
 int last_current_time = 0;
 bool is_running = false;
 uint16_t timer_disp_color = GREEN;
+float current_temp;
+float last_current_temp;
+uint16_t temp_disp_color = YELLOW;
 
 
 int e2_current_time = 0;
@@ -140,7 +151,12 @@ void stop_timer2(){
 }
 
 
+void start_temp_read(){
+  temp.read();
+}
 
+void temp_cb(float ct){
+}
 
 void log( const char* message ) {
   term.debug(message);
@@ -184,6 +200,9 @@ void update_display(){
 }
 
 
+
+
+
 uint16_t cc2_col = RED;
 void update_display2(){
   String ts_old = format_time(e2_last_current_time);
@@ -206,6 +225,35 @@ void update_display2(){
   tft.print(ts_new);
 }
 
+
+String format_temp(float tt){
+  String str_tt = String(tt);
+  str_tt+=" °C";
+  return str_tt;
+}
+
+
+void update_display_temp(){
+  String ts_old = format_temp(last_current_temp);
+  String ts_new = format_temp(current_temp);
+  tft.setCursor(0, 0);
+  tft.println();
+  tft.println();
+  for (int i = 0; i < ts_old.length(); i++){
+    if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ) {
+      tft.setTextColor(BLACK);
+    }
+    else {
+      tft.setTextColor(temp_disp_color);
+    }
+    tft.print(ts_old.charAt(i));
+  }
+  tft.setCursor(0, 0);
+  tft.println();
+  tft.println();
+  tft.setTextColor(temp_disp_color);
+  tft.print(format_temp(current_temp));
+}
 
 
 void setup() {
@@ -282,6 +330,14 @@ void setup() {
     update_display2();
   });
 
+  temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
+  temp.init(DS18B20_PIN);
+  temp.on_temp([](float t_new){
+      last_current_temp = current_temp;
+      current_temp = t_new;
+      update_display_temp();
+  });
+
   tft.begin();
   tft.setTextScale(1.5);
   set_font();
@@ -302,5 +358,7 @@ void loop(void) {
     pcf_data_incoming = false;
   }
   timer.run();
+  timer_temp.run();
   term.run();
+  temp.run();
 }
