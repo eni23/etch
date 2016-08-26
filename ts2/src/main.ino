@@ -1,3 +1,5 @@
+#include <SPI.h>
+#include <TFT_ST7735.h>
 #include <EEPROM.h>
 #include <SimpleTimer.h>
 #include <pcf8574_esp.h>
@@ -8,10 +10,12 @@
 #include "debouncer.cpp"
 #include "pcf8574encoder.cpp"
 #include "config.h"
-#include "display.cpp"
+// font
+#include "_usr/test0.c"
 
 
-PCF8574 pcf8574(PCF8574_ADDR, PCF8574_PIN_SDA, PCF8574_PIN_SCL);
+PCF8574 pcf8574(PCF8574_ENC_ADDR, I2C_PIN_SDA, I2C_PIN_SCL);
+TFT_ST7735 tft = TFT_ST7735(DISPLAY_PIN_CS, DISPLAY_PIN_DC);
 
 
 
@@ -19,10 +23,10 @@ int countdown_timer2;
 int countdown_timer;
 SimpleTimer timer;
 SerialTerm term;
-Debouncer btn_debounce(10);
-Debouncer enc_debounce(10);
-PCF8574Encoder test_encoder(0,1,2);
-PCF8574Encoder test_encoder2(3,4,5);
+
+PCF8574Encoder timer_encoder(ENC_TIMER_PORT_BTN,ENC_TIMER_PORT_UP,ENC_TIMER_PORT_DOWN);
+PCF8574Encoder temp_encoder(ENC_TEMP_PORT_BTN,ENC_TEMP_PORT_UP,ENC_TEMP_PORT_DOWN);
+
 DS18B20 temp;
 SimpleTimer timer_temp;
 int temp_timer;
@@ -45,6 +49,10 @@ uint16_t timer2_disp_color = RED;
 
 bool pcf_data_incoming = false;
 uint8_t pcf_data;
+void set_font(){
+
+tft.setFont(&fff);
+}
 
 void pcf_int(){
   pcf_data_incoming = true;
@@ -218,29 +226,24 @@ void setup() {
 
   pinMode(PCF8574_PIN_INT, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PCF8574_PIN_INT), pcf_int, CHANGE);
-
-  attachInterrupt(digitalPinToInterrupt(D6), [](){
-    log("ID6");
-  }, CHANGE);
-
   sei();
 
   term.begin(115200);
 
-  test_encoder.up([](){
+  timer_encoder.up([](){
     last_current_time = current_time;
     current_time++;
     update_display();
   });
 
-  test_encoder.down([](){
+  timer_encoder.down([](){
     last_current_time = current_time;
     if (current_time>0){
       current_time--;
       update_display();
     }
   });
-  test_encoder.button([](){
+  timer_encoder.button([](){
     if (current_time<1){
       return;
     }
@@ -253,20 +256,20 @@ void setup() {
     }
   });
 
-  test_encoder2.up([](){
+  temp_encoder.up([](){
     e2_last_current_time = e2_current_time;
     e2_current_time++;
     update_display2();
   });
 
-  test_encoder2.down([](){
+  temp_encoder.down([](){
     e2_last_current_time = e2_current_time;
     if (e2_current_time>0){
       e2_current_time--;
       update_display2();
     }
   });
-  test_encoder2.button([](){
+  temp_encoder.button([](){
     if (e2_current_time<1){
       return;
     }
@@ -316,8 +319,8 @@ void setup() {
 
 void loop(void) {
   if (pcf_data_incoming){
-    test_encoder.process(pcf_data);
-    test_encoder2.process(pcf_data);
+    timer_encoder.process(pcf_data);
+    temp_encoder.process(pcf_data);
     pcf_data_incoming = false;
   }
   timer.run();
