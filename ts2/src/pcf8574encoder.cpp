@@ -31,29 +31,31 @@ class PCF8574Encoder {
 			return 0;
 		}
 		uint8_t enc_dir = 0;
+		// plus    = 10,00,01
+		// minus   = 01,00,10
 		for (uint8_t i=0; i<3; i++){
 			uint8_t frm_plus  = enc_frame_data[i][0];
 			uint8_t frm_minus = enc_frame_data[i][1];
 			switch (i){
 				case 0:
-				if (frm_plus>frm_minus){
-					enc_dir=1;
-				}
-				else if (frm_minus>frm_plus){
-					enc_dir=2;
-				}
-				break;
+					if (frm_plus>frm_minus){
+						enc_dir=1;
+					}
+					else if (frm_minus>frm_plus){
+						enc_dir=2;
+					}
+					break;
 				case 1:
-				if (frm_minus!=0 || frm_plus!=0){
-					enc_dir=0;
-				}
-				break;
+					if (frm_minus!=0 || frm_plus!=0){
+						enc_dir=0;
+					}
+					break;
 				case 2:
-				if ( (enc_dir==1 && frm_plus!=0 && frm_minus!=1) ||
-				(enc_dir==2 && frm_plus!=1 && frm_minus!=0)) {
-					enc_dir=0;
-				}
-				break;
+					if ( (enc_dir==1 && frm_plus!=0 && frm_minus!=1) ||
+					(enc_dir==2 && frm_plus!=1 && frm_minus!=0)) {
+						enc_dir=0;
+					}
+					break;
 			}
 		}
 		if ( enc_is_inverse ){

@@ -1,59 +1,17 @@
-#include <SPI.h>
-#include <TFT_ST7735.h>
 #include <EEPROM.h>
 #include <SimpleTimer.h>
-#include "serial-term/SerialTerm.cpp"
 #include <pcf8574_esp.h>
 
 
+#include "serial-term/SerialTerm.cpp"
 #include "ds18b20obj.cpp"
-
 #include "debouncer.cpp"
 #include "pcf8574encoder.cpp"
-// font
-#include "_usr/test0.c"
+#include "config.h"
+#include "display.cpp"
 
 
-
-
-/*
- DISPLAY_PIN_CLK  D5
- DISPLAY_PIN_MOSI D7
-*/
-
-
-// wirning
-// DISPLAY_PIN_CLK      D5
-// DISPLAY_PIN_MOSI     D7
-#define DISPLAY_PIN_CS  D0
-#define DISPLAY_PIN_DC  D8
-#define DS18B20_PIN     D1
-#define PCF8574_PIN_INT D4
-#define PCF8574_PIN_SDA D2
-#define PCF8574_PIN_SCL D3
-#define PCF8574_ADDR    32
-
-
-// serial port baudrate
-#define SERIAL_BAUD               115200
-
-// configuration version (required to locate config in eeprom)
-#define CONFIG_VERSION            "002"
-
-// start address for config-struct in eeprom
-#define CONFIG_START               64
-
-
-
-
-
-TFT_ST7735 tft = TFT_ST7735(DISPLAY_PIN_CS, DISPLAY_PIN_DC);
 PCF8574 pcf8574(PCF8574_ADDR, PCF8574_PIN_SDA, PCF8574_PIN_SCL);
-
-
-void set_font(){
-tft.setFont(&fff);
-}
 
 
 
@@ -260,6 +218,11 @@ void setup() {
 
   pinMode(PCF8574_PIN_INT, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(PCF8574_PIN_INT), pcf_int, CHANGE);
+
+  attachInterrupt(digitalPinToInterrupt(D6), [](){
+    log("ID6");
+  }, CHANGE);
+
   sei();
 
   term.begin(115200);
