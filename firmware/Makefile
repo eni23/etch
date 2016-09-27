@@ -30,6 +30,7 @@ inotify-watch-upload:
 	+@tools/inotify-upload.sh lib/TFT_ST7735/_usr/ src/
 
 find-serial:
+	ls -1 $(SERIAL_DEVICE)
 	$(eval USBTTY=$(shell ls -1 $(SERIAL_DEVICE) 2>/dev/null | head -n1 ))
 
 monitor: find-serial
@@ -39,7 +40,7 @@ monitor-close:
 	tools/monitor.sh close
 
 monitor-loop: find-serial
-	+@tools/monitor.sh loop $(USBTTY) $(MONITOR_BAUD)
+	-tools/monitor.sh loop $(USBTTY) $(MONITOR_BAUD)
 
 monitor-notify-done:
 	tools/monitor.sh notify-done
