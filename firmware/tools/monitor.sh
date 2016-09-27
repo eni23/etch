@@ -35,8 +35,12 @@ if [[ $1 == "loop" ]]; then
     echo $$ > "${PIDFILE}"
     screen $2 $3
     rm $PIDFILE
-    echo "wait for upload (press ctrl+c to exit)"
+    echo "wait for upload (press ctrl+c or disconnect device to exit)"
     while [ ! -f "${UPLOADNOTIFY}" ]; do
+      if [ ! -c $2 ]; then
+        echo "disconnected"
+        exit 0
+      fi
       echo -n "."
       sleep .5
     done
