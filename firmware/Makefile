@@ -4,27 +4,24 @@ SERIAL_DEVICE		= /dev/ttyUSB*
 .PHONY: all inotify-watch-upload monitor-loop
 
 all:
-		platformio -f -c vim run
+	platformio -f -c vim run
 
 upload: monitor-close
-		platformio -f -c vim run --target upload --verbose
+	platformio -f -c vim run --target upload --verbose
 
 upload-reopen-monitor: upload monitor-notify-done
 
 clean:
-		platformio -f -c vim run --target clean --verbose
+	platformio -f -c vim run --target clean --verbose
 
 program:
-		platformio -f -c vim run --target program --verbose
+	platformio -f -c vim run --target program --verbose
 
 uploadfs:
-		platformio -f -c vim run --target uploadfs --verbose
+	platformio -f -c vim run --target uploadfs --verbose
 
 update: --verbose
-		platformio -f -c vim update
-
-install-pio-libs:
-		platformio lib install 419
+	platformio -f -c vim update
 
 inotify-watch-upload:
 	-tools/inotify-upload.sh lib/TFT_ST7735/_usr/ src/
