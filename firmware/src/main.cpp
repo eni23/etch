@@ -28,6 +28,7 @@ int temp_read_delay = 2500;
 int countdown_timer;
 bool timer_is_running = false;
 
+
 uint8_t pcf_data;
 SerialTerm term;
 
@@ -107,7 +108,7 @@ void setup() {
     }
   });
 
-  timer_encoder.button([](){
+  timer_encoder.button_longpress([](){
     if (current_time<1){
       return;
     }
@@ -118,6 +119,12 @@ void setup() {
       run_timer();
     }
   });
+  timer_encoder.button_shortpress([](){
+    if (timer_is_running){
+      stop_timer();
+    }
+  });
+
 
   temp_encoder.down([](){
     display.tick_temp_encoder();
@@ -133,6 +140,13 @@ void setup() {
     display.update_wanted_temp_value(wanted_temp);
   });
 
+  temp_encoder.button_longpress([](){
+    term.debug("long");
+  });
+
+  temp_encoder.button_shortpress([](){
+    term.debug("short");
+  });
 
   temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
   temp.init(DS18B20_PIN);
@@ -149,9 +163,17 @@ void loop() {
     timer_encoder.process(pcf_data);
     temp_encoder.process(pcf_data);
     pcf_data_incoming = false;
-  }  timer_temp.run();
+  }
+  timer_temp.run();
   term.run();
   temp.run();
   timer.run();
   timer_temp.run();
+
+  if (timer_encoder.button_press_active){
+    timer_encoder.process_button(pcf8574_enc.read8());
+  }
+  if (temp_encoder.button_press_active){
+    temp_encoder.process_button(pcf8574_enc.read8());
+  }
 }

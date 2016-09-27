@@ -8,7 +8,8 @@ class PCF8574Encoder {
 
 	PCF8574EncoderCallback callback_up;
 	PCF8574EncoderCallback callback_down;
-	PCF8574EncoderCallback callback_button;
+	PCF8574EncoderCallback callback_button_shortpress;
+	PCF8574EncoderCallback callback_button_longpress;
 
 	bool unprocessed_frames = false;
 	bool enc_is_inverse = false;
@@ -18,6 +19,7 @@ class PCF8574Encoder {
 	uint8_t enc_frame_num = 0;
 	bool enc_frame_active = false;
 	uint8_t enc_frame_data[3][2];
+	int button_press_time = 0;
 
 	uint8_t get_state(uint8_t _gs_states, uint8_t pos){
 	  return (_gs_states & (1<<pos)) > 0;
@@ -68,6 +70,9 @@ class PCF8574Encoder {
 
 
   public:
+
+	bool button_press_active = false;
+
   PCF8574Encoder(uint8_t port_btn, uint8_t port_plus, uint8_t port_minus, bool init_inverse = false) {
 		enc_port_btn   = port_btn;
 		enc_port_plus  = port_plus;
@@ -75,12 +80,14 @@ class PCF8574Encoder {
 		enc_is_inverse = init_inverse;
 		callback_up = [](){ return; };
 		callback_down = [](){ return; };
-		callback_button = [](){ return; };
+		callback_button_shortpress = [](){ return; };
+		callback_button_longpress = [](){ return; };
   }
 
 	void up(PCF8574EncoderCallback cb){ 		callback_up = cb;     }
 	void down(PCF8574EncoderCallback cb){ 	callback_down = cb;   }
-	void button(PCF8574EncoderCallback cb){ callback_button = cb; }
+	void button_longpress(PCF8574EncoderCallback cb){ callback_button_longpress = cb; }
+	void button_shortpress(PCF8574EncoderCallback cb){ callback_button_shortpress = cb; }
 
 
 	void process(uint8_t data) {
@@ -90,17 +97,16 @@ class PCF8574Encoder {
 
 		// process button
 		if (enc_btn<1){
-			callback_button();
+			button_press_active = true;
+			button_press_time = millis();
+			//callback_button();
 			return;
 		}
-
-
 
 		// process encoder
 		if ((enc_plus<1 || enc_minus<1) && !enc_frame_active){
       enc_frame_active = true;
     }
-
 
 		if (enc_frame_active){
 			enc_frame_data[enc_frame_num][0] = enc_plus;
@@ -122,6 +128,19 @@ class PCF8574Encoder {
 			}
 		}
 
+	}
+
+	void process_button(uint8_t data){
+		if (get_state(data, enc_port_btn)){
+			int diff = millis() - button_press_time;
+	    button_press_active = false;
+	    if (diff > 700){
+	      callback_button_longpress();
+	    }
+	    else {
+	      callback_button_shortpress();
+	    }
+		}
 	}
 
 

@@ -17,7 +17,6 @@
 #define DISPLAY_COLOR_TEMP_HIGHER 0xE984
 
 class Display {
-  TFT_ST7735* tft;
 
   int last_time = 0;
   float last_wanted_temp = 0.0;
@@ -46,6 +45,8 @@ class Display {
 
   public:
 
+
+  TFT_ST7735* tft;
   bool timer_is_running=false;
 
   Display() {
