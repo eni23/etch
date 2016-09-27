@@ -1,7 +1,7 @@
 MONITOR_BAUD		= 115200
 SERIAL_DEVICE		= /dev/ttyUSB*
 
-.PHONY: all inotify-watch-upload
+.PHONY: all inotify-watch-upload monitor-loop
 
 all:
 		platformio -f -c vim run
@@ -27,7 +27,7 @@ install-pio-libs:
 		platformio lib install 419
 
 inotify-watch-upload:
-	+@tools/inotify-upload.sh lib/TFT_ST7735/_usr/ src/
+	-tools/inotify-upload.sh lib/TFT_ST7735/_usr/ src/
 
 find-serial:
 	ls -1 $(SERIAL_DEVICE)
