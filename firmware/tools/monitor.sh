@@ -20,10 +20,11 @@ if [[ $1 == "open" ]]; then
     exit 1;
   fi
   echo $$ > "${PIDFILE}"
-  screen /dev/ttyUSB0 115200
+  screen $2 $3
   rm $PIDFILE
   exit 0
 fi
+
 
 if [[ $1 == "loop" ]]; then
   if [ -z $2 ] || [ -z $3 ]; then
@@ -62,7 +63,6 @@ if [[ $1 == "notify-done" ]]; then
   touch "${UPLOADNOTIFY}"
   exit 0
 fi
-
 
 
 echo "Unkown action $1"
