@@ -20,9 +20,9 @@ class Display {
   TFT_ST7735* tft;
 
   int last_time = 0;
-  float last_wanted_temp;
-  float last_temp;
-
+  float last_wanted_temp = 0.0;
+  float last_temp = 0.0;
+  bool menu_open = false;
   String format_time(int wt = -1){
     String ret = "";
     int minutes = (int) wt / 60;
@@ -56,46 +56,49 @@ class Display {
     tft->begin();
     tft->setRotation(135);
     tft->setTextScale(1);
-    //font_console();
+    redraw_main_screen();
+  }
+
+  void redraw_main_screen(){
+
+    tft->clearScreen();
+    tft->setInternalFont();
     tft->setTextColor(DISPLAY_COLOR_GRAY);
     tft->println("TIMER");
 
-    /*font_console();
-    tft->setTextColor(DISPLAY_COLOR_TIMER_OFF);
-    tft->println("00:00");
-    */
-    update_timer_value(0);
+    update_timer_value(last_time);
 
     tft->setTextColor(DISPLAY_COLOR_GRAY);
     tft->setCursor(0, 45);
     tft->setInternalFont();
     tft->println("WANTED");
 
-    /*font_console();
-    tft->setTextColor(DISPLAY_COLOR_TEMP_WANTED);
-    tft->setCursor(0, 53);
-    tft->println("45.28");
-    */
-    update_wanted_temp_value(0);
-
+    update_wanted_temp_value(last_wanted_temp);
 
     tft->setTextColor(DISPLAY_COLOR_GRAY);
     tft->setCursor(114, 45);
     tft->setInternalFont();
     tft->println("CURRENT");
-    update_temp_value(0);
+    update_temp_value(last_temp);
 
-    /*font_console();
-    tft->setTextColor(DISPLAY_COLOR_TEMP_LOWER);
-    tft->setCursor(85, 53);
-    tft->println("29.99");
-    */
   }
 
 
+  void show_menu(){
+    tft->fillRect(8,8,120,100,DISPLAY_COLOR_GRAY);
+    menu_open = true;
+  }
+
+  void hide_menu(){
+    menu_open = false;
+    redraw_main_screen();
+  }
 
 
   void update_timer_value(int value){
+    if (menu_open) {
+      return;
+    }
     uint16_t curr_dispcolor = DISPLAY_COLOR_TIMER_OFF;
     if (timer_is_running){
       curr_dispcolor=DISPLAY_COLOR_TIMER_ON;
@@ -123,6 +126,9 @@ class Display {
 
 
   void update_wanted_temp_value(float value){
+    if (menu_open) {
+      return;
+    }
     font_console();
     String ts_old = format_temp(last_wanted_temp);
     String ts_new = format_temp(value);
@@ -143,7 +149,9 @@ class Display {
   }
 
   void update_temp_value(float value){
-
+    if (menu_open) {
+      return;
+    }
     uint16_t curr_dispcolor = DISPLAY_COLOR_TEMP_LOWER;
     if (value>last_wanted_temp){
       curr_dispcolor = DISPLAY_COLOR_TEMP_HIGHER;
@@ -167,6 +175,13 @@ class Display {
     tft->setTextColor(curr_dispcolor);
     tft->print(format_temp(value));
     last_temp = value;
+  }
+
+  void tick_temp_encoder(){
+    return;
+  }
+  void tick_timer_encoder(){
+    return;
   }
 
   void font_frutiger(){

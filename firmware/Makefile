@@ -6,8 +6,10 @@ SERIAL_DEVICE		= /dev/ttyUSB*
 all:
 		platformio -f -c vim run
 
-upload:
+upload: monitor-close
 		platformio -f -c vim run --target upload --verbose
+
+upload-reopen-monitor: upload monitor-notify-done
 
 clean:
 		platformio -f -c vim run --target clean --verbose
@@ -31,4 +33,13 @@ find-serial:
 	$(eval USBTTY=$(shell ls -1 $(SERIAL_DEVICE) 2>/dev/null | head -n1 ))
 
 monitor: find-serial
-	screen $(USBTTY) $(MONITOR_BAUD)
+	tools/monitor.sh open $(USBTTY) $(MONITOR_BAUD)
+
+monitor-close:
+	tools/monitor.sh close
+
+monitor-loop: find-serial
+	+@tools/monitor.sh loop $(USBTTY) $(MONITOR_BAUD)
+
+monitor-notify-done:
+	tools/monitor.sh notify-done

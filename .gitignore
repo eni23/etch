@@ -2,3 +2,5 @@ non-git/*
 __pycache__/*
 */.pioenvs/*
 */.piolibdeps/*
+*.monitorpid*
+*.upload-done*
