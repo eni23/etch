@@ -1,4 +1,5 @@
 #include "Arduino.h"
+#include <EEPROM.h>
 #include "config.h"
 #include "display.cpp"
 #include <SimpleTimer.h>
@@ -17,20 +18,68 @@ PCF8574Encoder timer_encoder(ENC_TIMER_PORT_BTN,ENC_TIMER_PORT_DOWN,ENC_TIMER_PO
 PCF8574Encoder temp_encoder(ENC_TEMP_PORT_BTN,ENC_TEMP_PORT_DOWN,ENC_TEMP_PORT_UP);
 
 Display display;
-int current_time = 0;
 bool pcf_data_incoming = false;
-float wanted_temp = 45.0;
 DS18B20 temp;
 SimpleTimer timer;
+SimpleTimer timer_eeprom;
 SimpleTimer timer_temp;
 int temp_timer;
 int temp_read_delay = 2500;
 int countdown_timer;
-bool timer_is_running = false;
-
+int eeprom_save_timer;
 
 uint8_t pcf_data;
 SerialTerm term;
+
+
+struct eeprom_config_struct {
+  char version[4];
+  int timer_value;
+  int timer_step_size;
+  bool timer_is_running;
+  float wanted_temp;
+  float temp_step_size;
+  bool ts_is_running;
+  bool ts_is_warmup;
+} eeprom_config = {
+  CONFIG_VERSION,
+  200,
+  1,
+  false,
+  42.00,
+  0.25,
+  false,
+  false,
+};
+
+
+void eeprom_load_config() {
+  // If nothing is found we load default settings.
+  if ( EEPROM.read( CONFIG_START + 0 ) == CONFIG_VERSION[0] &&
+       EEPROM.read( CONFIG_START + 1 ) == CONFIG_VERSION[1] &&
+       EEPROM.read( CONFIG_START + 2 ) == CONFIG_VERSION[2] ) {
+    for ( unsigned int t = 0; t < sizeof( eeprom_config ); t++ ) {
+      *( ( char* ) &eeprom_config + t ) = EEPROM.read( CONFIG_START + t );
+    }
+  }
+}
+
+/**
+ * save eeprom-struct
+ **/
+void eeprom_save_config() {
+  for ( unsigned int t = 0; t < sizeof( eeprom_config ); t++ ) {
+    EEPROM.write( CONFIG_START + t, *( ( char* ) &eeprom_config + t ) );
+  }
+  EEPROM.commit();
+  term.debug("saved");
+}
+
+
+void eeprom_save_config_delayed(){
+  timer_eeprom.deleteTimer(eeprom_save_timer);
+  eeprom_save_timer = timer_eeprom.setTimeout(550, eeprom_save_config);
+}
 
 
 void pcf_int(){
@@ -44,30 +93,33 @@ void start_temp_read(){
 
 
 void stop_timer(){
-  if (timer_is_running){
+  if (eeprom_config.timer_is_running){
     pcf8574_rel.write(REL_TIMER, 1);
     display.timer_is_running = false;
-    timer_is_running = false;
+    eeprom_config.timer_is_running = false;
     timer.deleteTimer(countdown_timer);
-    display.update_timer_value(current_time);
+    display.update_timer_value(eeprom_config.timer_value);
+    eeprom_save_config_delayed();
   }
 }
 
 void run_timer(){
-  if (!timer_is_running){
+  if (!eeprom_config.timer_is_running){
+
     pcf8574_rel.write(REL_TIMER, 0);
 
     display.timer_is_running = true;
     countdown_timer = timer.setInterval(1000, [](){
-      current_time -= 1;
-      if (current_time<=0){
+      eeprom_config.timer_value -= 1;
+      if (eeprom_config.timer_value<=0){
         stop_timer();
       }
-      display.update_timer_value(current_time);
-
+      display.update_timer_value(eeprom_config.timer_value);
+      eeprom_save_config_delayed();
     });
-    timer_is_running = true;
-    display.update_timer_value(current_time);
+    eeprom_config.timer_is_running = true;
+    display.update_timer_value(eeprom_config.timer_value);
+    eeprom_save_config_delayed();
   }
 }
 
@@ -80,6 +132,19 @@ void init_term(){
   term.on("hide_menu", [](){
     display.hide_menu();
   });
+
+  term.on("info", [](){
+    Serial.print("wanted_temp = ");
+    Serial.println(eeprom_config.wanted_temp);
+    term.printf("timer_value = %i\n\r", eeprom_config.timer_value );
+  });
+
+  term.on("load-info", [](){
+    eeprom_load_config();
+    Serial.print("wanted_temp = ");
+    Serial.println(eeprom_config.wanted_temp);
+    term.printf("timer_value = %i\n\r", eeprom_config.timer_value );
+  });
 }
 
 
@@ -89,30 +154,33 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PCF8574_PIN_INT), pcf_int, CHANGE);
   sei();
 
+
   display.init();
   init_term();
 
-  display.update_wanted_temp_value(wanted_temp);
 
   timer_encoder.up([](){
     display.tick_timer_encoder();
-    current_time++;
-    display.update_timer_value(current_time);
+    eeprom_config.timer_value+=eeprom_config.timer_step_size;
+    display.update_timer_value(eeprom_config.timer_value);
+    eeprom_save_config_delayed();
   });
 
   timer_encoder.down([](){
     display.tick_timer_encoder();
-    if (current_time>0){
-      current_time--;
-      display.update_timer_value(current_time);
+    if (eeprom_config.timer_value>0){
+      eeprom_config.timer_value-=eeprom_config.timer_step_size;
+      display.update_timer_value(eeprom_config.timer_value);
+      //eeprom_save_config();
+      eeprom_save_config_delayed();
     }
   });
 
   timer_encoder.button_longpress([](){
-    if (current_time<1){
+    if (eeprom_config.timer_value<1){
       return;
     }
-    if (timer_is_running){
+    if (eeprom_config.timer_is_running){
       stop_timer();
     }
     else {
@@ -120,7 +188,7 @@ void setup() {
     }
   });
   timer_encoder.button_shortpress([](){
-    if (timer_is_running){
+    if (eeprom_config.timer_is_running){
       stop_timer();
     }
   });
@@ -128,24 +196,28 @@ void setup() {
 
   temp_encoder.down([](){
     display.tick_temp_encoder();
-    if (wanted_temp>0){
-      wanted_temp=wanted_temp-0.25;
-      display.update_wanted_temp_value(wanted_temp);
+    if (eeprom_config.wanted_temp>0){
+      eeprom_config.wanted_temp -= eeprom_config.temp_step_size;
+      display.update_wanted_temp_value(eeprom_config.wanted_temp);
+      eeprom_save_config_delayed();
     }
   });
 
   temp_encoder.up([](){
     display.tick_temp_encoder();
-    wanted_temp=wanted_temp+0.25;
-    display.update_wanted_temp_value(wanted_temp);
+    eeprom_config.wanted_temp += eeprom_config.temp_step_size;
+    display.update_wanted_temp_value(eeprom_config.wanted_temp);
+    eeprom_save_config_delayed();
   });
 
   temp_encoder.button_longpress([](){
-    term.debug("long");
+    pcf8574_rel.toggle(REL_PUMP);
+    term.debug("toggle pump");
   });
 
   temp_encoder.button_shortpress([](){
-    term.debug("short");
+    pcf8574_rel.toggle(REL_HEATER);
+    term.debug("toggle heater");
   });
 
   temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
@@ -154,6 +226,17 @@ void setup() {
     display.update_temp_value(t_new);
   });
 
+
+  EEPROM.begin( sizeof( eeprom_config ) + CONFIG_START );
+  eeprom_load_config();
+
+  display.update_wanted_temp_value(eeprom_config.wanted_temp);
+
+  display.update_timer_value(eeprom_config.timer_value);
+  if (eeprom_config.timer_is_running){
+    eeprom_config.timer_is_running = false;
+    run_timer();
+  }
 }
 
 
@@ -168,7 +251,9 @@ void loop() {
   term.run();
   temp.run();
   timer.run();
+  timer_eeprom.run();
   timer_temp.run();
+
 
   if (timer_encoder.button_press_active){
     timer_encoder.process_button(pcf8574_enc.read8());

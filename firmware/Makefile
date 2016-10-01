@@ -9,7 +9,7 @@ all:
 upload: monitor-close
 	platformio -f -c vim run --target upload --verbose
 
-upload-reopen-monitor: upload monitor-notify-done
+upload-reopen-monitor: all upload monitor-notify-done
 
 clean:
 	platformio -f -c vim run --target clean --verbose
