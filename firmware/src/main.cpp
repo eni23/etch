@@ -5,32 +5,31 @@
 #include <SimpleTimer.h>
 #include <pcf8574_esp.h>
 
-
 #include "serial-term/SerialTerm.cpp"
 #include "ds18b20obj.cpp"
 #include "pcf8574encoder.cpp"
 
+
 PCF8574 pcf8574_enc(PCF8574_ENC_ADDR, I2C_PIN_SDA, I2C_PIN_SCL);
 PCF8574 pcf8574_rel(PCF8574_REL_ADDR, I2C_PIN_SDA, I2C_PIN_SCL);
-
 
 PCF8574Encoder timer_encoder(ENC_TIMER_PORT_BTN,ENC_TIMER_PORT_DOWN,ENC_TIMER_PORT_UP);
 PCF8574Encoder temp_encoder(ENC_TEMP_PORT_BTN,ENC_TEMP_PORT_DOWN,ENC_TEMP_PORT_UP);
 
 Display display;
-bool pcf_data_incoming = false;
 DS18B20 temp;
+SerialTerm term;
+
 SimpleTimer timer;
 SimpleTimer timer_eeprom;
 SimpleTimer timer_temp;
+
 int temp_timer;
-int temp_read_delay = 2500;
 int countdown_timer;
 int eeprom_save_timer;
-
+bool pcf_data_incoming = false;
 uint8_t pcf_data;
-SerialTerm term;
-
+bool the_heat_is_on = false;
 
 struct eeprom_config_struct {
   char version[4];
@@ -41,6 +40,9 @@ struct eeprom_config_struct {
   float temp_step_size;
   bool ts_is_running;
   bool ts_is_warmup;
+  float temp_grace_value;
+  uint8_t temp_precision;
+  int temp_read_delay;
 } eeprom_config = {
   CONFIG_VERSION,
   200,
@@ -50,6 +52,9 @@ struct eeprom_config_struct {
   0.25,
   false,
   false,
+  3.0,
+  10,
+  2500
 };
 
 
@@ -72,7 +77,6 @@ void eeprom_save_config() {
     EEPROM.write( CONFIG_START + t, *( ( char* ) &eeprom_config + t ) );
   }
   EEPROM.commit();
-  term.debug("saved");
 }
 
 
@@ -123,6 +127,70 @@ void run_timer(){
   }
 }
 
+
+void start_thermostat(){
+  if (eeprom_config.ts_is_running){
+    return;
+  }
+  pcf8574_rel.write(REL_HEATER, 0);
+  the_heat_is_on = true;
+  eeprom_config.ts_is_running = true;
+  eeprom_config.ts_is_warmup = true;
+  eeprom_save_config_delayed();
+  term.debug("ts start");
+
+}
+
+
+void stop_thermostat(){
+  if (!eeprom_config.ts_is_running){
+    return;
+  }
+  pcf8574_rel.write(REL_HEATER, 1);
+  pcf8574_rel.write(REL_HEATER, 1);
+  eeprom_config.ts_is_running = false;
+  eeprom_config.ts_is_warmup = false;
+  the_heat_is_on = false;
+  eeprom_save_config_delayed();
+  term.debug("ts stop");
+}
+
+
+void process_temp(float t_new){
+  display.update_temp_value(t_new);
+  if (eeprom_config.ts_is_running){
+    if (eeprom_config.ts_is_warmup){
+      if (t_new>=eeprom_config.wanted_temp){
+        pcf8574_rel.write(REL_PUMP, 0);
+        term.debug("start pump");
+        eeprom_config.ts_is_warmup = false;
+        eeprom_save_config_delayed();
+        return;
+      }
+    }
+    else {
+
+      if (t_new>(eeprom_config.wanted_temp + eeprom_config.temp_grace_value)){
+          if (the_heat_is_on){
+            term.debug("turn off heat");
+            pcf8574_rel.write(REL_HEATER, 1);
+            the_heat_is_on = false;
+          }
+      }
+      else if (t_new<(eeprom_config.wanted_temp - eeprom_config.temp_grace_value)){
+          if (!the_heat_is_on){
+            term.debug("turn on heat");
+            pcf8574_rel.write(REL_HEATER, 0);
+            the_heat_is_on = true;
+          }
+      }
+
+    }
+
+  }
+}
+
+
 void init_term(){
   term.begin(115200);
   term.on("show-menu", [](){
@@ -134,16 +202,42 @@ void init_term(){
   });
 
   term.on("info", [](){
-    Serial.print("wanted_temp = ");
-    Serial.println(eeprom_config.wanted_temp);
     term.printf("timer_value = %i\n\r", eeprom_config.timer_value );
+    term.printf("timer_is_running = %s\n\r", eeprom_config.timer_is_running ? "true" : "false" );
+    term.printf("timer_step_size = %i\n\r", eeprom_config.timer_step_size );
+    Serial.print("temp_wanted = ");
+    Serial.println(eeprom_config.wanted_temp);
+    term.printf("temp_is_running = %s\n\r", eeprom_config.ts_is_running ? "true" : "false" );
+    term.printf("temp_warmup_is_running = %s\n\r", eeprom_config.ts_is_running ? "true" : "false" );
+    Serial.print("temp_step_size = ");
+    Serial.println(eeprom_config.temp_step_size);
+    Serial.print("temp_grace_value");
+    Serial.println(eeprom_config.temp_grace_value);
+    term.printf("temp_precision = %i\n\r", eeprom_config.temp_precision );
+    term.printf("temp_read_delay = %i\n\r", eeprom_config.temp_read_delay );
   });
 
-  term.on("load-info", [](){
-    eeprom_load_config();
-    Serial.print("wanted_temp = ");
-    Serial.println(eeprom_config.wanted_temp);
-    term.printf("timer_value = %i\n\r", eeprom_config.timer_value );
+
+  term.on("set-temp-resolution", [](){
+    uint8_t precision = term.intArg(0);
+    if (precision<9 || precision>12){
+      term.debug("ERROR: precision needs to be between 9 and 12");
+      return;
+    }
+    temp.set_resolution(precision);
+    eeprom_save_config();
+  });
+
+  term.on("set-temp-delay", [](){
+    int delay = term.intArg(0);
+    if (delay<250){
+      term.debug("ERROR: delay needs to be bigger than 250ms");
+      return;
+    }
+    eeprom_config.temp_read_delay = delay;
+    timer_temp.deleteTimer(temp_timer);
+    temp_timer = timer_temp.setInterval(eeprom_config.temp_read_delay, start_temp_read);
+    eeprom_save_config();
   });
 }
 
@@ -154,14 +248,12 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(PCF8574_PIN_INT), pcf_int, CHANGE);
   sei();
 
-
   display.init();
   init_term();
 
-
   timer_encoder.up([](){
     display.tick_timer_encoder();
-    eeprom_config.timer_value+=eeprom_config.timer_step_size;
+    eeprom_config.timer_value += eeprom_config.timer_step_size;
     display.update_timer_value(eeprom_config.timer_value);
     eeprom_save_config_delayed();
   });
@@ -169,9 +261,8 @@ void setup() {
   timer_encoder.down([](){
     display.tick_timer_encoder();
     if (eeprom_config.timer_value>0){
-      eeprom_config.timer_value-=eeprom_config.timer_step_size;
+      eeprom_config.timer_value -= eeprom_config.timer_step_size;
       display.update_timer_value(eeprom_config.timer_value);
-      //eeprom_save_config();
       eeprom_save_config_delayed();
     }
   });
@@ -211,19 +302,22 @@ void setup() {
   });
 
   temp_encoder.button_longpress([](){
-    pcf8574_rel.toggle(REL_PUMP);
-    term.debug("toggle pump");
+    if (!eeprom_config.ts_is_running){
+      start_thermostat();
+    }
+    else {
+      stop_thermostat();
+    }
   });
 
   temp_encoder.button_shortpress([](){
-    pcf8574_rel.toggle(REL_HEATER);
-    term.debug("toggle heater");
+    stop_thermostat();
   });
 
-  temp_timer = timer_temp.setInterval(temp_read_delay, start_temp_read);
-  temp.init(DS18B20_PIN);
+  temp_timer = timer_temp.setInterval(eeprom_config.temp_read_delay, start_temp_read);
+  temp.init(DS18B20_PIN, eeprom_config.temp_precision);
   temp.on_temp([](float t_new){
-    display.update_temp_value(t_new);
+    process_temp(t_new);
   });
 
 
@@ -253,7 +347,6 @@ void loop() {
   timer.run();
   timer_eeprom.run();
   timer_temp.run();
-
 
   if (timer_encoder.button_press_active){
     timer_encoder.process_button(pcf8574_enc.read8());

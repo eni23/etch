@@ -34,7 +34,7 @@
 #define SERIAL_BAUD               115200
 
 // configuration version (required to locate config in eeprom)
-#define CONFIG_VERSION            "003"
+#define CONFIG_VERSION            "12d"
 
 // start address for config-struct in eeprom
 #define CONFIG_START               0
