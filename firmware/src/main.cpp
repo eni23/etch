@@ -146,7 +146,7 @@ void stop_thermostat(){
   if (!eeprom_config.ts_is_running){
     return;
   }
-  pcf8574_rel.write(REL_HEATER, 1);
+  pcf8574_rel.write(REL_PUMP, 1);
   pcf8574_rel.write(REL_HEATER, 1);
   eeprom_config.ts_is_running = false;
   eeprom_config.ts_is_warmup = false;
@@ -211,7 +211,7 @@ void init_term(){
     term.printf("temp_warmup_is_running = %s\n\r", eeprom_config.ts_is_running ? "true" : "false" );
     Serial.print("temp_step_size = ");
     Serial.println(eeprom_config.temp_step_size);
-    Serial.print("temp_grace_value");
+    Serial.print("temp_grace_value = ");
     Serial.println(eeprom_config.temp_grace_value);
     term.printf("temp_precision = %i\n\r", eeprom_config.temp_precision );
     term.printf("temp_read_delay = %i\n\r", eeprom_config.temp_read_delay );
@@ -239,6 +239,37 @@ void init_term(){
     temp_timer = timer_temp.setInterval(eeprom_config.temp_read_delay, start_temp_read);
     eeprom_save_config();
   });
+
+  term.on("set-temp-grace-value", [](){
+    float new_val = term.floatArg(0);
+    if (new_val<0.1){
+      term.debug("ERROR: value needs to be bigger than 0.09C");
+      return;
+    }
+    eeprom_config.temp_grace_value = new_val;
+    eeprom_save_config();
+  });
+
+  term.on("set-temp-stepsize", [](){
+    float new_val = term.floatArg(0);
+    if (new_val<0.01){
+      term.debug("ERROR: value needs to be bigger than 0.009C");
+      return;
+    }
+    eeprom_config.temp_step_size = new_val;
+    eeprom_save_config();
+  });
+
+  term.on("set-timer-stepsize", [](){
+    int new_val = term.intArg(0);
+    if (new_val<1){
+      term.debug("ERROR: value needs to be bigger than 0.009C");
+      return;
+    }
+    eeprom_config.timer_step_size = new_val;
+    eeprom_save_config();
+  });
+
 }
 
 
@@ -325,6 +356,10 @@ void setup() {
   eeprom_load_config();
 
   display.update_wanted_temp_value(eeprom_config.wanted_temp);
+  if (eeprom_config.ts_is_running){
+    eeprom_config.ts_is_running = false;
+    start_thermostat();
+  }
 
   display.update_timer_value(eeprom_config.timer_value);
   if (eeprom_config.timer_is_running){
