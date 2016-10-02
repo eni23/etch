@@ -16,9 +16,11 @@
 
 // I2C port expander encoder
 #define PCF8574_ENC_ADDR   32
+
 #define ENC_TIMER_PORT_BTN  0
 #define ENC_TIMER_PORT_UP   1
 #define ENC_TIMER_PORT_DOWN 2
+
 #define ENC_TEMP_PORT_BTN   3
 #define ENC_TEMP_PORT_UP    4
 #define ENC_TEMP_PORT_DOWN  5

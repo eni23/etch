@@ -388,6 +388,13 @@ void setup() {
     process_temp(t_new);
   });
 
+  temp.on_error([](){
+    display.show_temp_error();
+  });
+
+  temp.on_error_fixed([](){
+    display.hide_temp_error();
+  });
 
   EEPROM.begin( sizeof( eeprom_config ) + CONFIG_START );
   eeprom_load_config();

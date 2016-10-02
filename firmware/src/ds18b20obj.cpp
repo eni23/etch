@@ -6,6 +6,7 @@
 
 
 typedef void (*DS18B20Callback) (float temp);
+typedef void (*DS18B20CallbackError) ();
 
 
 class DS18B20 {
@@ -20,6 +21,8 @@ class DS18B20 {
 	uint8_t buffer_idx;
 	OneWire* sensor;
 	DS18B20Callback callback;
+	DS18B20CallbackError error_callback;
+	DS18B20CallbackError error_fixed_callback;
 
 	void buffer_add(float value) {
 		for (int k = 16; k >0; k--){
@@ -62,28 +65,60 @@ class DS18B20 {
 	  sensor->reset();
 	  sensor->skip();
 	  sensor->write( 0xBE );
+		bool was_ee = is_error;
+		bool ee = true;
 	  for ( i = 0; i < 9; i++ ) {
 	    temp_data[ i ] = sensor->read();
+			if (temp_data[i]!=255) {
+				ee = false;
+			}
 	  }
+		if (ee){
+			is_error = true;
+			read_is_active = false;
+			error_callback();
+			return;
+		}
+		else {
+			is_error = false;
+		}
+		if (was_ee){
+			error_fixed_callback();
+		}
+
 	  raw_temp = ( temp_data[ 1 ] << 8 ) | temp_data[ 0 ];
 	  temp_c = (float) raw_temp / 16.0;
-		read_is_active = false;
 		buffer_add(temp_c);
 		callback(temp_c);
 		read_is_active = false;
 	}
 
 	public:
+
+	bool is_error = false;
+
   DS18B20() {
   }
 
 	void init(int onewire_pin, uint8_t res = 10){
 		sensor = new OneWire(onewire_pin);
 		resolution = res;
+		// avoid segfaults
+		callback = [](float t){ return; };
+		error_callback = [](){ return; };
+		error_fixed_callback = [](){ return; };
 	}
 
 	void on_temp(DS18B20Callback cbx){
 		callback = cbx;
+	}
+
+	void on_error(DS18B20CallbackError cbx){
+		error_callback = cbx;
+	}
+
+	void on_error_fixed(DS18B20CallbackError cbx){
+		error_fixed_callback = cbx;
 	}
 
 	void set_resolution(uint8_t res){
@@ -96,87 +131,6 @@ class DS18B20 {
 
 	void get_buffer(uint8_t index){
 		Serial.println( buffer[index] );
-	}
-
-	int get_trend_divi(){
-		float diff[16];
-  	float tot = 0;
-  	for (int i = 0; i<15; i++){
-    	diff[i] = buffer[i+1] - buffer[i];
-    	tot+=diff[i];
-  	}
-		tot = (tot/15);
-		float tt = (buffer[16] - buffer[0] / 16);
-		Serial.print("variance=");
-		Serial.print(tt);
-		Serial.print(" trend=");
-		Serial.println(tot);
-
-		if (tot>0){
-			//falling
-			return 1;
-		}
-		if (tot<0){
-			//rising
-			return 2;
-		}
-		//unclear
-		return 0;
-	}
-
-
-	int get_trend_count(){
-	  float base = buffer[0];
-	  int upper = 0;
-	  int lower = 0;
-		for (int i=15; i>0; i--){
-	    if (buffer[i]>base){
-	      lower++;
-	    }
-	    if (buffer[i]<base){
-	      upper++;
-	    }
-	  }
-		if (upper>lower){
-    	//rising
-			return 2;
-  	}
-  	if (lower>upper){
-    	//falling
-			return 1;
-  	}
-		// unclear
-		return 0;
-	}
-
-
-
-	int get_trend_countw(){
-	  float base = buffer[0];
-	  float upper=0;
-	  float lower=0;
-	  int g=1;
-		for (int i=15; i>0; i--){
-	    if (buffer[i]>base){
-	      lower += ((float) (buffer[i]-base) * (1*g) );
-	    }
-	    if (buffer[i]<base){
-	      upper += ((float) (base-buffer[i]) * (1*g) );
-	    }
-	    g++;
-	  }
-
-		if (upper > lower){
-    	//rising
-			return 2;
-  	}
-  	if (lower > upper){
-			//falling
-			return 1;
-  	}
-		// unclear
-		return 0;
-
 	}
 
 

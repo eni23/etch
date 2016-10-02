@@ -17,7 +17,8 @@
 #define DISPLAY_COLOR_TEMP_HIGHER 0xE984
 
 #define DISPLAY_COLOR_TEMP_STEP   0xF201
-#define DISPLAY_COLOR_TEMP_HIGHER 0xE984
+#define DISPLAY_COLOR_ERROR       0xF041
+
 
 class Display {
 
@@ -70,6 +71,7 @@ class Display {
   int timer_step_size = 0;
   float temp_grace_value = 0;
   bool temp_grace_active = false;
+  bool temp_is_error;
 
   Display() {
   }
@@ -283,6 +285,23 @@ class Display {
     tft->setTextColor(curr_dispcolor);
     tft->print(format_temp(value));
     last_temp = value;
+  }
+
+  void show_temp_error(){
+    if (!temp_is_error){
+      tft->fillRect(85,53,75,30, BLACK);
+      tft->setCursor(85, 53);
+      tft->setTextColor(DISPLAY_COLOR_ERROR);
+      font_console();
+      tft->println("ERROR");
+      temp_is_error = true;
+    }
+  }
+
+  void hide_temp_error(){
+    tft->fillRect(85,53,75,30, BLACK);
+    update_temp_value(last_temp);
+    temp_is_error = false;
   }
 
 
