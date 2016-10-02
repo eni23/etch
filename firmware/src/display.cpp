@@ -16,8 +16,14 @@
 #define DISPLAY_COLOR_TEMP_LOWER  0x31F
 #define DISPLAY_COLOR_TEMP_HIGHER 0xE984
 
+#define DISPLAY_COLOR_TIMER_STEP   0xF201
 #define DISPLAY_COLOR_TEMP_STEP   0xF201
 #define DISPLAY_COLOR_ERROR       0xF041
+
+#define DISPLAY_COLOR_DOT_DISABLED 0x39E7
+#define DISPLAY_COLOR_DOT_TIMER    0xCC5F
+#define DISPLAY_COLOR_DOT_HEATER   0xF1C0
+#define DISPLAY_COLOR_DOT_PUMP     0x37F
 
 
 class Display {
@@ -84,6 +90,37 @@ class Display {
     redraw_main_screen();
   }
 
+  void overdraw_text( uint16_t t,
+                      uint16_t l,
+                      uint16_t color,
+                      String ts_old,
+                      String ts_new,
+                      int value=-1) {
+      tft->setCursor(t, l);
+      for ( int i = 0; i < ts_old.length(); i++ ){
+
+        if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ||
+          ( value>-1 && (value % 60)==0) || ( value>-1 && (last_time % 60)==0 ) ) {
+            tft->setTextColor(BLACK);
+          }
+          else {
+            tft->setTextColor(color);
+          }
+          tft->print(ts_old.charAt(i));
+        }
+        tft->setCursor(t, l);
+        tft->setTextColor(color);
+        tft->print(ts_new);
+  }
+
+  void display_dot(char tt, uint16_t l, uint16_t t, uint16_t color){
+    tft->fillCircle(l, t, 6, color);
+    tft->setInternalFont();
+    tft->setCursor(l-2,t-2);
+    tft->setTextColor(BLACK);
+    tft->print(tt);
+  }
+
   void redraw_main_screen(){
 
     tft->clearScreen();
@@ -106,6 +143,30 @@ class Display {
     tft->println("CURRENT");
     update_temp_value(last_temp);
 
+
+    display_dot('T', 15, 115, DISPLAY_COLOR_DOT_DISABLED);
+    display_dot('H', 35, 115, DISPLAY_COLOR_DOT_DISABLED);
+    display_dot('P', 55, 115, DISPLAY_COLOR_DOT_DISABLED);
+  }
+
+
+  void timer_start(){
+    display_dot('T', 15, 115, DISPLAY_COLOR_DOT_TIMER);
+  }
+  void timer_stop(){
+    display_dot('T', 15, 115, DISPLAY_COLOR_DOT_DISABLED);
+  }
+  void heater_start(){
+    display_dot('H', 35, 115, DISPLAY_COLOR_DOT_HEATER);
+  }
+  void heater_stop(){
+    display_dot('H', 35, 115, DISPLAY_COLOR_DOT_DISABLED);
+  }
+  void pump_start(){
+    display_dot('P', 55, 115, DISPLAY_COLOR_DOT_PUMP);
+  }
+  void pump_stop(){
+    display_dot('P', 55, 115, DISPLAY_COLOR_DOT_DISABLED);
   }
 
   void show_timer_step(){
@@ -115,7 +176,7 @@ class Display {
     tft->setInternalFont();
     tft->setTextColor(DISPLAY_COLOR_GRAY);
     tft->println("STEP SIZE");
-    tft->setTextColor(DISPLAY_COLOR_TEMP_STEP);
+    tft->setTextColor(DISPLAY_COLOR_TIMER_STEP);
     tft->setCursor(0, 8);
     font_console();
     tft->println(timer_step_size);
@@ -140,24 +201,15 @@ class Display {
 
 
   void update_timer_step_size(int value){
-    tft->setCursor(0, 8);
+
     font_console();
-    String ts_old = String(timer_step_size);
-    String ts_new = String(value);
-    uint16_t curr_dispcolor = DISPLAY_COLOR_TEMP_STEP;
-    for (int i = 0; i < ts_old.length(); i++){
-      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ||
-           ((value % 60)==0) || ((last_time % 60)==0) ) {
-        tft->setTextColor(BLACK);
-      }
-      else {
-        tft->setTextColor(curr_dispcolor);
-      }
-      tft->print(ts_old.charAt(i));
-    }
-    tft->setCursor(0, 8);
-    tft->setTextColor(curr_dispcolor);
-    tft->print(ts_new);
+    overdraw_text(  0,
+                    8,
+                    DISPLAY_COLOR_TIMER_STEP,
+                    format_time(last_time),
+                    format_time(value),
+                    value
+                  );
     timer_step_size=value;
   }
 
@@ -170,22 +222,13 @@ class Display {
       curr_dispcolor=DISPLAY_COLOR_TIMER_ON;
     }
     font_console();
-    String ts_old = format_time(last_time);
-    String ts_new = format_time(value);
-    tft->setCursor(0, 8);
-    for (int i = 0; i < ts_old.length(); i++){
-      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ||
-           ((value % 60)==0) || ((last_time % 60)==0) ) {
-        tft->setTextColor(BLACK);
-      }
-      else {
-        tft->setTextColor(curr_dispcolor);
-      }
-      tft->print(ts_old.charAt(i));
-    }
-    tft->setCursor(0, 8);
-    tft->setTextColor(curr_dispcolor);
-    tft->print(format_time(value));
+    overdraw_text(  0,
+                    8,
+                    curr_dispcolor,
+                    format_time(last_time),
+                    format_time(value),
+                    value
+                  );
     last_time = value;
   }
 
@@ -217,19 +260,11 @@ class Display {
     font_console();
     String ts_old = format_temp(temp_grace_value);
     String ts_new = format_temp(value);
-    uint16_t curr_dispcolor = DISPLAY_COLOR_TEMP_STEP;
-    for (int i = 0; i < ts_old.length(); i++){
-      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ) {
-        tft->setTextColor(BLACK);
-      }
-      else {
-        tft->setTextColor(curr_dispcolor);
-      }
-      tft->print(ts_old.charAt(i));
-    }
-    tft->setCursor(0, 53);
-    tft->setTextColor(curr_dispcolor);
-    tft->print(ts_new);
+    overdraw_text(  0,
+                    53,
+                    DISPLAY_COLOR_TEMP_STEP,
+                    format_temp(temp_grace_value),
+                    format_temp(value));
     temp_grace_value=value;
   }
 
@@ -241,19 +276,11 @@ class Display {
     font_console();
     String ts_old = format_temp(last_wanted_temp);
     String ts_new = format_temp(value);
-    tft->setCursor(0, 53);
-    for (int i = 0; i < ts_old.length(); i++){
-      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ) {
-        tft->setTextColor(BLACK);
-      }
-      else {
-        tft->setTextColor(DISPLAY_COLOR_TEMP_WANTED);
-      }
-      tft->print(ts_old.charAt(i));
-    }
-    tft->setCursor(0, 53);
-    tft->setTextColor(DISPLAY_COLOR_TEMP_WANTED);
-    tft->print(format_temp(value));
+    overdraw_text(  0,
+                    53,
+                    DISPLAY_COLOR_TEMP_WANTED,
+                    format_temp(last_wanted_temp),
+                    format_temp(value));
     last_wanted_temp = value;
   }
 
@@ -266,24 +293,12 @@ class Display {
     if (value>last_wanted_temp){
       curr_dispcolor = DISPLAY_COLOR_TEMP_HIGHER;
     }
-
-
     font_console();
-    String ts_old = format_temp(last_temp);
-    String ts_new = format_temp(value);
-    tft->setCursor(85, 53);
-    for (int i = 0; i < ts_old.length(); i++){
-      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ) {
-        tft->setTextColor(BLACK);
-      }
-      else {
-        tft->setTextColor(curr_dispcolor);
-      }
-      tft->print(ts_old.charAt(i));
-    }
-    tft->setCursor(85, 53);
-    tft->setTextColor(curr_dispcolor);
-    tft->print(format_temp(value));
+    overdraw_text(  85,
+                    53,
+                    curr_dispcolor,
+                    format_temp(last_temp),
+                    format_temp(value));
     last_temp = value;
   }
 
@@ -303,7 +318,6 @@ class Display {
     update_temp_value(last_temp);
     temp_is_error = false;
   }
-
 
   void font_frutiger(){
     tft->setFont(&frutiger);

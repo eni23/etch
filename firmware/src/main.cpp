@@ -34,6 +34,7 @@ bool the_heat_is_on = false;
 struct eeprom_config_struct {
   char version[4];
   int timer_value;
+  int timer_total;
   int timer_step_size;
   bool timer_is_running;
   float wanted_temp;
@@ -45,6 +46,7 @@ struct eeprom_config_struct {
   int temp_read_delay;
 } eeprom_config = {
   CONFIG_VERSION,
+  200,
   200,
   1,
   false,
@@ -99,10 +101,12 @@ void start_temp_read(){
 void stop_timer(){
   if (eeprom_config.timer_is_running){
     pcf8574_rel.write(REL_TIMER, 1);
+    display.timer_stop();
     display.timer_is_running = false;
     eeprom_config.timer_is_running = false;
     timer.deleteTimer(countdown_timer);
-    display.update_timer_value(eeprom_config.timer_value);
+    eeprom_config.timer_value = eeprom_config.timer_total;
+    display.update_timer_value(eeprom_config.timer_total);
     eeprom_save_config_delayed();
   }
 }
@@ -111,6 +115,9 @@ void run_timer(){
   if (!eeprom_config.timer_is_running){
 
     pcf8574_rel.write(REL_TIMER, 0);
+    display.timer_start();
+
+    eeprom_config.timer_total = eeprom_config.timer_value;
 
     display.timer_is_running = true;
     countdown_timer = timer.setInterval(1000, [](){
@@ -139,6 +146,8 @@ void start_thermostat(){
   eeprom_save_config_delayed();
   term.debug("ts start");
 
+  display.heater_start();
+
 }
 
 
@@ -153,6 +162,9 @@ void stop_thermostat(){
   the_heat_is_on = false;
   eeprom_save_config_delayed();
   term.debug("ts stop");
+
+  display.heater_stop();
+  display.pump_stop();
 }
 
 
@@ -160,8 +172,9 @@ void process_temp(float t_new){
   display.update_temp_value(t_new);
   if (eeprom_config.ts_is_running){
     if (eeprom_config.ts_is_warmup){
-      if (t_new>=eeprom_config.wanted_temp){
+      if ((t_new+eeprom_config.temp_grace_value)>=eeprom_config.wanted_temp){
         pcf8574_rel.write(REL_PUMP, 0);
+        display.pump_start();
         term.debug("start pump");
         eeprom_config.ts_is_warmup = false;
         eeprom_save_config_delayed();
@@ -170,16 +183,18 @@ void process_temp(float t_new){
     }
     else {
 
-      if (t_new>(eeprom_config.wanted_temp + eeprom_config.temp_grace_value)){
+      if ((t_new+eeprom_config.temp_grace_value)>=eeprom_config.wanted_temp){
           if (the_heat_is_on){
             term.debug("turn off heat");
+            display.heater_stop();
             pcf8574_rel.write(REL_HEATER, 1);
             the_heat_is_on = false;
           }
       }
-      else if (t_new<(eeprom_config.wanted_temp - eeprom_config.temp_grace_value)){
+      else if ((t_new-eeprom_config.temp_grace_value)<=eeprom_config.wanted_temp){
           if (!the_heat_is_on){
             term.debug("turn on heat");
+            display.heater_start();
             pcf8574_rel.write(REL_HEATER, 0);
             the_heat_is_on = true;
           }
