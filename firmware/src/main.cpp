@@ -193,13 +193,6 @@ void process_temp(float t_new){
 
 void init_term(){
   term.begin(115200);
-  term.on("show-menu", [](){
-    display.show_menu();
-  });
-
-  term.on("hide_menu", [](){
-    display.hide_menu();
-  });
 
   term.on("info", [](){
     term.printf("timer_value = %i\n\r", eeprom_config.timer_value );
@@ -283,14 +276,27 @@ void setup() {
   init_term();
 
   timer_encoder.up([](){
-    display.tick_timer_encoder();
+    if (display.step_timer_active){
+      eeprom_config.timer_step_size+=1;
+      display.update_timer_step_size(eeprom_config.timer_step_size);
+      eeprom_save_config_delayed();
+      return;
+    }
     eeprom_config.timer_value += eeprom_config.timer_step_size;
     display.update_timer_value(eeprom_config.timer_value);
     eeprom_save_config_delayed();
   });
 
   timer_encoder.down([](){
-    display.tick_timer_encoder();
+    if (display.step_timer_active){
+      if (eeprom_config.timer_step_size<2){
+        return;
+      }
+      eeprom_config.timer_step_size-=1;
+      display.update_timer_step_size(eeprom_config.timer_step_size);
+      eeprom_save_config_delayed();
+      return;
+    }
     if (eeprom_config.timer_value>0){
       eeprom_config.timer_value -= eeprom_config.timer_step_size;
       display.update_timer_value(eeprom_config.timer_value);
@@ -313,11 +319,18 @@ void setup() {
     if (eeprom_config.timer_is_running){
       stop_timer();
     }
+    else {
+      if (display.step_timer_active){
+        display.hide_timer_step();
+      }
+      else {
+        display.show_timer_step();
+      }
+    }
   });
 
 
   temp_encoder.down([](){
-    display.tick_temp_encoder();
     if (eeprom_config.wanted_temp>0){
       eeprom_config.wanted_temp -= eeprom_config.temp_step_size;
       display.update_wanted_temp_value(eeprom_config.wanted_temp);
@@ -326,7 +339,6 @@ void setup() {
   });
 
   temp_encoder.up([](){
-    display.tick_temp_encoder();
     eeprom_config.wanted_temp += eeprom_config.temp_step_size;
     display.update_wanted_temp_value(eeprom_config.wanted_temp);
     eeprom_save_config_delayed();
@@ -354,6 +366,9 @@ void setup() {
 
   EEPROM.begin( sizeof( eeprom_config ) + CONFIG_START );
   eeprom_load_config();
+
+
+  display.timer_step_size = eeprom_config.timer_step_size;
 
   display.update_wanted_temp_value(eeprom_config.wanted_temp);
   if (eeprom_config.ts_is_running){

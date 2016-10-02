@@ -16,14 +16,32 @@
 #define DISPLAY_COLOR_TEMP_LOWER  0x31F
 #define DISPLAY_COLOR_TEMP_HIGHER 0xE984
 
+#define DISPLAY_COLOR_TEMP_STEP   0xF201
+#define DISPLAY_COLOR_TEMP_HIGHER 0xE984
+
 class Display {
 
   int last_time = 0;
   float last_wanted_temp = 0.0;
   float last_temp = 0.0;
   bool menu_open = false;
+
   String format_time(int wt = -1){
     String ret = "";
+    int minutes = (int) wt / 60;
+    int secs = wt % 60;
+    String str_min = String(minutes, DEC);
+    String str_sec = String(secs, DEC);
+    if (minutes<10) ret+="0";
+    ret+=str_min;
+    ret+=":";
+    if (secs<10) ret+="0";
+    ret+=str_sec;
+    return ret;
+  }
+
+  String format_int(int wt){
+    String ret = String();
     int minutes = (int) wt / 60;
     int secs = wt % 60;
     String str_min = String(minutes, DEC);
@@ -48,6 +66,8 @@ class Display {
 
   TFT_ST7735* tft;
   bool timer_is_running=false;
+  bool step_timer_active = false;
+  int timer_step_size = 0;
 
   Display() {
   }
@@ -84,20 +104,61 @@ class Display {
 
   }
 
-
-  void show_menu(){
-    tft->fillRect(8,8,120,100,DISPLAY_COLOR_GRAY);
-    menu_open = true;
+  void show_timer_step(){
+    step_timer_active = true;
+    tft->fillRect(0,0,120,30, BLACK);
+    tft->setCursor(0, 0);
+    tft->setInternalFont();
+    tft->setTextColor(DISPLAY_COLOR_GRAY);
+    tft->println("STEP SIZE");
+    tft->setTextColor(DISPLAY_COLOR_TEMP_STEP);
+    tft->setCursor(0, 8);
+    font_console();
+    tft->println(timer_step_size);
   }
 
-  void hide_menu(){
-    menu_open = false;
-    redraw_main_screen();
+  void hide_timer_step(){
+    step_timer_active = false;
+    tft->fillRect(0,0,120,30, BLACK);
+    tft->setCursor(0, 0);
+    tft->setInternalFont();
+    tft->setTextColor(DISPLAY_COLOR_GRAY);
+    tft->println("TIMER");
+    if (timer_is_running){
+      tft->setTextColor(DISPLAY_COLOR_TIMER_ON);
+    } else {
+      tft->setTextColor(DISPLAY_COLOR_TIMER_OFF);
+    }
+    font_console();
+    tft->setCursor(0, 8);
+    tft->println(format_time(last_time));
   }
 
+
+  void update_timer_step_size(int value){
+    tft->setCursor(0, 8);
+    font_console();
+    String ts_old = String(timer_step_size);
+    String ts_new = String(value);
+    uint16_t curr_dispcolor = DISPLAY_COLOR_TEMP_STEP;
+    for (int i = 0; i < ts_old.length(); i++){
+      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ||
+           ((value % 60)==0) || ((last_time % 60)==0) ) {
+        tft->setTextColor(BLACK);
+      }
+      else {
+        tft->setTextColor(curr_dispcolor);
+      }
+      tft->print(ts_old.charAt(i));
+    }
+    tft->setCursor(0, 8);
+    tft->setTextColor(curr_dispcolor);
+    tft->print(ts_new);
+    timer_step_size=value;
+  }
 
   void update_timer_value(int value){
-    if (menu_open) {
+    if ( step_timer_active ) {
       return;
     }
     uint16_t curr_dispcolor = DISPLAY_COLOR_TIMER_OFF;
@@ -149,6 +210,7 @@ class Display {
     last_wanted_temp = value;
   }
 
+
   void update_temp_value(float value){
     if (menu_open) {
       return;
@@ -178,12 +240,6 @@ class Display {
     last_temp = value;
   }
 
-  void tick_temp_encoder(){
-    return;
-  }
-  void tick_timer_encoder(){
-    return;
-  }
 
   void font_frutiger(){
     tft->setFont(&frutiger);
