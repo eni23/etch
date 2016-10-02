@@ -68,6 +68,8 @@ class Display {
   bool timer_is_running=false;
   bool step_timer_active = false;
   int timer_step_size = 0;
+  float temp_grace_value = 0;
+  bool temp_grace_active = false;
 
   Display() {
   }
@@ -185,10 +187,53 @@ class Display {
     last_time = value;
   }
 
+  void show_temp_grace(){
+    temp_grace_active = true;
+    tft->fillRect(0,44,75,30, BLACK);
+    tft->setCursor(0, 45);
+    tft->setInternalFont();
+    tft->setTextColor(DISPLAY_COLOR_GRAY);
+    tft->println("GRACE");
+    tft->setTextColor(DISPLAY_COLOR_TEMP_STEP);
+    tft->setCursor(0, 53);
+    font_console();
+    update_temp_grace_value(temp_grace_value);
+  }
+
+  void hide_temp_grace(){
+    temp_grace_active = false;
+    tft->fillRect(0,44,75,30, BLACK);
+    tft->setCursor(0, 45);
+    tft->setInternalFont();
+    tft->setTextColor(DISPLAY_COLOR_GRAY);
+    tft->println("WANTED");
+    update_wanted_temp_value(last_wanted_temp);
+  }
+
+  void update_temp_grace_value(float value){
+    tft->setCursor(0, 53);
+    font_console();
+    String ts_old = format_temp(temp_grace_value);
+    String ts_new = format_temp(value);
+    uint16_t curr_dispcolor = DISPLAY_COLOR_TEMP_STEP;
+    for (int i = 0; i < ts_old.length(); i++){
+      if ( (ts_old.charAt(i) != ts_new.charAt(i) ) ) {
+        tft->setTextColor(BLACK);
+      }
+      else {
+        tft->setTextColor(curr_dispcolor);
+      }
+      tft->print(ts_old.charAt(i));
+    }
+    tft->setCursor(0, 53);
+    tft->setTextColor(curr_dispcolor);
+    tft->print(ts_new);
+    temp_grace_value=value;
+  }
 
 
   void update_wanted_temp_value(float value){
-    if (menu_open) {
+    if ( temp_grace_active ) {
       return;
     }
     font_console();

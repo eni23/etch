@@ -331,6 +331,15 @@ void setup() {
 
 
   temp_encoder.down([](){
+    if (display.temp_grace_active){
+      if (eeprom_config.temp_grace_value<0){
+        return;
+      }
+      eeprom_config.temp_grace_value-=0.1;
+      display.update_temp_grace_value(eeprom_config.temp_grace_value);
+      eeprom_save_config_delayed();
+      return;
+    }
     if (eeprom_config.wanted_temp>0){
       eeprom_config.wanted_temp -= eeprom_config.temp_step_size;
       display.update_wanted_temp_value(eeprom_config.wanted_temp);
@@ -339,6 +348,12 @@ void setup() {
   });
 
   temp_encoder.up([](){
+    if (display.temp_grace_active){
+      eeprom_config.temp_grace_value+=0.1;
+      display.update_temp_grace_value(eeprom_config.temp_grace_value);
+      eeprom_save_config_delayed();
+      return;
+    }
     eeprom_config.wanted_temp += eeprom_config.temp_step_size;
     display.update_wanted_temp_value(eeprom_config.wanted_temp);
     eeprom_save_config_delayed();
@@ -354,7 +369,17 @@ void setup() {
   });
 
   temp_encoder.button_shortpress([](){
-    stop_thermostat();
+    if (eeprom_config.ts_is_running){
+      stop_thermostat();
+    }
+    else {
+      if (display.temp_grace_active){
+        display.hide_temp_grace();
+      }
+      else {
+        display.show_temp_grace();
+      }
+    }
   });
 
   temp_timer = timer_temp.setInterval(eeprom_config.temp_read_delay, start_temp_read);
@@ -369,6 +394,7 @@ void setup() {
 
 
   display.timer_step_size = eeprom_config.timer_step_size;
+  display.temp_grace_value = eeprom_config.temp_grace_value;
 
   display.update_wanted_temp_value(eeprom_config.wanted_temp);
   if (eeprom_config.ts_is_running){
