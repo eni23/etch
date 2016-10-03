@@ -206,8 +206,8 @@ class Display {
     overdraw_text(  0,
                     8,
                     DISPLAY_COLOR_TIMER_STEP,
-                    format_time(last_time),
-                    format_time(value),
+                    String(timer_step_size),
+                    String(value),
                     value
                   );
     timer_step_size=value;

@@ -278,6 +278,14 @@ void init_term(){
     eeprom_save_config();
   });
 
+  term.on("wanted-temp", [](){
+    int new_val = term.floatArg(0);
+
+    eeprom_config.wanted_temp = new_val;
+    eeprom_save_config();
+
+  });
+
 }
 
 
